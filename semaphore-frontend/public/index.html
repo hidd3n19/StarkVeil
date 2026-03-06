@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeilSignal</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script type="module" src="https://unpkg.com/emoji-picker-element@1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/starknet@6.23.1/dist/index.global.js"></script>
+  <script>
+    // Stash the full starknet library immediately so wallet extensions
+    // don't overwrite the 'starknet' namespace and strip our Contract classes
+    window.starknet_js = window.starknet;
+  </script>
+</head>
+
+<body>
+  <!-- Landing Overlay for Unconnected Users -->
+  <div id="landingOverlay">
+    <div class="brand-wrap" style="margin-bottom: 20px;">
+      <div class="brand-dot" style="width: 60px; height: 60px; font-size: 1.5rem;">VS</div>
+    </div>
+    <div class="landing-content">
+      <h1>VeilSignal</h1>
+      <p>A decentralized community platform where provable skin-in-the-game meets complete Zero-Knowledge anonymity.
+        Join Token-Gated communities, vote on proposals, and signal your intent without exposing your identity back to
+        your wallet.</p>
+
+      <div class="top-actions wallet-actions" style="justify-content: center; margin-top: 30px;">
+        <button id="connectWalletLanding" type="button" class="wallet-btn btn-blue"
+          style="padding: 16px 36px; font-size: 1.2rem;">Connect
+          Starknet Wallet to Enter</button>
+      </div>
+      <p style="margin-top:20px; font-size: 0.9rem;">
+        <span id="walletStatusLanding" class="chip wallet-status">No wallet detected</span>
+      </p>
+    </div>
+  </div>
+
+  <main class="app-shell" id="appShell" style="display:none;">
+
+    <!-- LEFT RAIL: Navigation -->
+    <aside class="left-rail">
+      <div class="brand-wrap">
+        <div class="brand-dot">VS</div>
+        <div>
+          <h1>VeilSignal</h1>
+          <p style="margin: 3px 0 0; color: var(--muted); font-size: 0.8rem; line-height:1.2;">Anonymous Signaling &
+            Voting</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button id="navFeed" class="nav-item active" type="button">
+          <span>Feed</span>
+        </button>
+        <button id="navDiscover" class="nav-item" type="button">
+          <span>Explorer</span>
+        </button>
+
+        <hr style="border: 0; border-top: 1px solid var(--line); margin: 15px 0;" />
+
+        <button id="navCreateGroup" class="nav-item" type="button">
+          <span>Create Group</span>
+        </button>
+        <button id="navCreateTopic" class="nav-item" type="button">
+          <span>Create Topic</span>
+        </button>
+        <button id="navIdentity" class="nav-item" type="button">
+          <span>Create Identity</span>
+        </button>
+      </nav>
+
+      <!-- Profile Card (Bottom Left instead of top bar) -->
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-avatar"></div>
+          <div style="flex: 1;">
+            <div class="profile-address" id="profWallet">-</div>
+            <div style="font-size: 0.8rem; color: var(--good);" id="profStatus">Connected</div>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="stat-row">
+            <span>STRK Balance</span>
+            <span class="stat-value" id="profBalance">-</span>
+          </div>
+          <div class="stat-row">
+            <span>Active Groups</span>
+            <span class="stat-value" id="profGroupsJoined">-</span>
+          </div>
+        </div>
+        <button id="disconnectWallet"
+          style="width:100%; margin-top: 15px; padding: 10px; border-radius:8px; border:1px solid var(--danger); background: transparent; color: var(--danger); cursor:pointer;">Disconnect</button>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: Main Content Workspace -->
+    <section class="main-content">
+
+      <!-- View: Feed -->
+      <section id="viewFeed" class="mode-view">
+        <h2 style="margin-top:0; font-size: 2rem;">Feed</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Active topics from communities you have joined.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 15px;">
+          <div style="display:flex; gap:8px;">
+            <button id="feedScopeAll"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All
+              Topics</button>
+            <button id="feedScopeMine"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Your
+              Topics</button>
+          </div>
+          <input id="feedSearchInput" placeholder="Search topics..."
+            style="flex:1; min-width:220px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+        </div>
+        <div id="feedOut">Loading topics...</div>
+      </section>
+
+      <!-- View: Discover -->
+      <section id="viewDiscover" class="mode-view hidden">
+        <h2 style="margin-top:0; font-size: 2rem;">Explorer</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Join exclusive Token-Gated groups using your Starknet
+          balance.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 15px;">
+          <div style="display:flex; gap:8px;">
+            <button id="discoverScopeAll"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All
+              Groups</button>
+            <button id="discoverScopeMine"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Your
+              Groups</button>
+          </div>
+          <input id="discoverSearchInput" placeholder="Search groups..."
+            style="flex:1; min-width:220px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+        </div>
+        <div id="discoverOut">Loading communities...</div>
+      </section>
+
+      <!-- View: Group -->
+      <section id="viewGroup" class="mode-view hidden">
+        <button id="backToDiscover"
+          style="margin-bottom:12px; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; min-width:44px;">←</button>
+        <div id="groupPageOut">Loading group...</div>
+      </section>
+
+      <!-- View: Topic -->
+      <section id="viewTopic" class="mode-view hidden">
+        <button id="backToGroup"
+          style="margin-bottom:12px; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; min-width:44px;">←</button>
+        <div id="topicPageOut">Loading topic...</div>
+      </section>
+
+      <!-- View: Create Group -->
+      <section id="viewCreateGroup" class="mode-view hidden">
+        <h2 style="margin-top:0; font-size: 2rem;">Create Community</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Deploy a new Token-Gated group to the Semaphore protocol.
+        </p>
+
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <label style="display:block; margin-bottom: 10px;">Group ID (Slug) <input id="groupId"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              value="starknet-devs" /></label>
+          <label style="display:block; margin-bottom: 10px;">Group Name <input id="groupName"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              value="Starknet Devs" /></label>
+          <label style="display:block; margin-bottom: 10px;">Intro / Description
+            <textarea id="groupDescription" rows="2"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="Welcome to the community..."></textarea>
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Header Image (URL or Upload)
+            <input id="groupHeaderImageUrl"
+              style="width:100%; padding:10px; margin-top:5px; margin-bottom: 5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="https://..." />
+            <input type="file" id="groupHeaderImageFile" accept="image/*" style="display:block; font-size: 0.85rem;" />
+          </label>
+
+          <label style="display:block; margin-bottom: 10px;">Depth (1-32) <input id="groupDepth" type="number"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              value="20" /></label>
+
+          <label style="display:block; margin-bottom: 10px;">Policy Type
+            <select id="policyType"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
+              <option value="open">Open (No requirement)</option>
+              <option value="token_min">Minimum Token Balance</option>
+              <option value="reputation_min">Minimum Reputation</option>
+              <option value="kyc">KYC Verified</option>
+              <option value="allowlist">Strict Allowlist</option>
+            </select>
+          </label>
+
+          <label style="display:block; margin-bottom: 10px;">KYC Verified Required
+            <select id="groupKycRequired"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </label>
+
+          <label style="display:block; margin-bottom: 10px;">Allowlist IDs (comma separated string)
+            <textarea id="allowlistIds" rows="2"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px; font-family:monospace;"></textarea>
+          </label>
+
+          <label style="display:block; margin-bottom: 10px;">Min Reputation <input id="minReputation" type="number"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              value="10" /></label>
+
+          <label style="display:block; margin-bottom: 15px;">Required STRK Balance <input id="policyMinToken"
+              type="number"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              value="10" /></label>
+
+          <button id="createGroup"
+            class="btn-blue"
+            style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Deploy
+            Group</button>
+          <div id="groupOut" style="margin-top:10px; color:var(--good);"></div>
+        </article>
+      </section>
+
+      <!-- View: Create Topic -->
+      <section id="viewCreateTopic" class="mode-view hidden">
+        <h2 style="margin-top:0; font-size: 2rem;">Post a Topic (Scope)</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Create a new discussion or vote in an existing community.
+        </p>
+
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <label style="display:block; margin-bottom: 10px;">Select Group
+            <select id="adminTopicGroup"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></select>
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Topic Title <input id="adminTopicName"
+              placeholder="e.g. Best Wallet 2026?"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" /></label>
+          <label style="display:block; margin-bottom: 15px;">Topic Type
+            <select id="adminTopicType"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
+              <option value="poll">Poll (Yes/No)</option>
+              <option value="open">Open Discussion</option>
+            </select>
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Body (optional)
+            <textarea id="adminTopicBody" rows="3" placeholder="Add context for your topic..."
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></textarea>
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Image (URL or Upload)
+            <input id="adminTopicImageUrl" placeholder="https://..."
+              style="width:100%; padding:10px; margin-top:5px; margin-bottom: 5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+            <input type="file" id="adminTopicImageFile" accept="image/*" style="display:block; font-size: 0.85rem;" />
+          </label>
+          <label style="display:block; margin-bottom: 15px;">Link URL (optional) <input id="adminTopicLinkUrl"
+              placeholder="https://..."
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" /></label>
+          <button id="createTopic"
+            class="btn-blue"
+            style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Publish
+            Topic</button>
+          <div id="topicOut" style="margin-top:10px; color:var(--good);"></div>
+        </article>
+      </section>
+
+      <!-- View: Advanced Identity -->
+      <section id="viewIdentity" class="mode-view hidden">
+        <h2 style="margin-top:0; font-size: 2rem;">Create Identity</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Create and manage your infinite, untraceable cryptographic
+          identities here.</p>
+
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <h3>Generate New Identity</h3>
+          <p style="font-size: 0.85rem; color:var(--muted);">By keeping your passphrase safe, you can always recover
+            your identity across devices without your wallet.</p>
+          <label style="display:block; margin-bottom: 15px; margin-top:15px;">Passphrase (min 8 chars)
+            <input id="advIdentityPassphrase" type="password" placeholder="Enter secure passphrase"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+          </label>
+          <div style="display:flex; gap: 10px;">
+            <button id="advCreateIdentity"
+              class="btn-blue"
+              style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Create
+              Identity</button>
+          </div>
+          <div id="advIdentityOut" class="mono output"
+            style="margin-top: 15px; background:rgba(0,0,0,0.4); padding: 10px; border-radius: 6px; font-size: 0.8rem; word-break: break-all;">
+          </div>
+        </article>
+
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <h3>Your Local Identities</h3>
+          <div id="localIdentitiesList" style="display:flex; flex-direction:column; gap:10px;">
+            <p style="color:var(--muted); font-size:0.85rem;">No identities locally stored right now.</p>
+          </div>
+        </article>
+
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <h3>Identity Attribute Simulator</h3>
+          <p style="font-size: 0.85rem; color:var(--muted); margin-bottom: 15px;">Manually set reputation and KYC flag
+            for your active identity.</p>
+
+          <label style="display:block; margin-bottom: 10px;">Reputation
+            <input id="identityReputationInput" type="number" min="0" step="1" value="0"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+          </label>
+
+          <div style="display:flex; gap: 10px; margin-bottom: 10px;">
+            <button id="decReputationBtn"
+              style="padding: 8px 12px; border-radius:6px; background:transparent; color:var(--text); border:1px solid var(--line); cursor:pointer;">-1
+              Rep</button>
+            <button id="incReputationBtn"
+              style="padding: 8px 12px; border-radius:6px; background:transparent; color:var(--text); border:1px solid var(--line); cursor:pointer;">+1
+              Rep</button>
+          </div>
+
+          <label style="display:block; margin-bottom: 15px;">KYC Verified
+            <select id="identityKycVerifiedInput"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </label>
+
+          <button id="applyIdentityAttrs"
+            class="btn-blue"
+            style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Apply
+            Identity Attributes</button>
+          <div id="identityAttrsOut" style="margin-top:10px; color:var(--good); font-size:0.85rem;"></div>
+        </article>
+
+        <article class="panel"
+          style="padding: 20px; border: 1px dashed var(--line); background: transparent; margin-bottom: 20px;">
+          <h3 style="color: var(--muted);">Pure Semaphore Import / Export</h3>
+          <p style="font-size: 0.85rem; color:var(--muted); margin-bottom: 15px;">Move your exact identity between
+            devices without changing your passphrase. Pure cryptography.</p>
+
+          <div style="display:flex; gap: 10px; margin-bottom: 20px;">
+            <button id="exportIdentity"
+              style="padding: 8px 16px; border-radius:6px; background: var(--bg-card); color:var(--text); border:1px solid var(--line); cursor:pointer;">⬇️
+              Export Active Identity</button>
+          </div>
+
+          <label style="display:block; margin-bottom: 10px; font-size: 0.85rem;">Import JSON Package
+            <textarea id="importJsonBody" rows="2" placeholder='{"id": "...", "passphrase": "..."}'
+              style="width:100%; padding:8px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:6px; font-family: monospace;"></textarea>
+          </label>
+          <button id="importIdentity"
+            style="padding: 8px 16px; border-radius:6px; background: var(--bg-card); color:var(--text); border:1px solid var(--line); cursor:pointer;">⬆️
+            Import Identity</button>
+        </article>
+
+        <article class="panel" style="padding: 20px; border: 1px solid var(--line); background: rgba(255,255,255,0.02);">
+          <h3 style="color: var(--ink); margin-top:0;">Emergency Recovery (Key Rotation)</h3>
+          <p style="font-size: 0.85rem; color:var(--muted); margin-bottom: 15px;">Lose your passphrase? Use your
+            Recovery Code to prove ownership and rotate to a brand new passphrase.</p>
+
+          <label style="display:block; margin-bottom: 10px; font-size: 0.85rem;">Recover Identity ID <input
+              id="recoverIdentityId" placeholder="identity id"
+              style="width:100%; padding:8px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:6px;" /></label>
+          <label style="display:block; margin-bottom: 10px; font-size: 0.85rem;">Recovery Code (Include Dashes) <input
+              id="recoverCode" placeholder="xxxx-xxxx-xxxx-xxxx"
+              style="width:100%; padding:8px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:6px;" /></label>
+          <label style="display:block; margin-bottom: 15px; font-size: 0.85rem;">New Passphrase (min 8 chars)<input
+              id="recoverPassphrase" type="password"
+              style="width:100%; padding:8px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:6px;" /></label>
+          <button id="recoverIdentity"
+            class="btn-blue"
+            style="padding: 8px 16px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">Rotate
+            Passphrase</button>
+        </article>
+      </section>
+
+    </section>
+
+    <!-- RIGHT RAIL: Context / Telemetry / Identity -->
+    <aside class="right-rail">
+      <!-- Identity Manager Widget -->
+      <div
+        style="background: rgba(255,255,255,0.02); border:1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <h3
+          style="margin: 0 0 15px 0; font-size: 1.1rem; display:flex; justify-content:space-between; align-items:center;">
+          Identity Overview
+        </h3>
+
+        <div id="identityQuickView">
+          <p style="font-size: 0.85rem; color:var(--muted); margin:0 0 10px 0;">Active Session Identity:</p>
+          <select id="profIdentitySelect"
+            style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; border:1px solid var(--line); color:var(--text); width:100%;">
+            <option value="">None Setup</option>
+          </select>
+
+          <p style="font-size:0.75rem; color:var(--muted); margin-top:10px;">Select an identity from the main Identity
+            Vault tab to interact uniquely.</p>
+        </div>
+      </div>
+
+      <!-- Proof Telemetry Widget -->
+      <div
+        style="background: rgba(255,255,255,0.02); border:1px solid var(--line); border-radius: 12px; padding: 16px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 1.1rem;">Live Proof Telemetry</h3>
+        <p style="font-size: 0.8rem; color: var(--muted); line-height: 1.4; margin-bottom:15px;">Watch Zero-Knowledge
+          primitives generate locally when you interact.</p>
+
+        <dl style="margin:0; font-family: monospace; font-size: 0.75rem; display:flex; flex-direction:column; gap:8px;">
+          <div
+            style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
+            <dt style="color:var(--muted)">GROUP ROOT</dt>
+            <dd id="teleRoot" style="margin:0; color:var(--accent-2);">-</dd>
+          </div>
+          <div
+            style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
+            <dt style="color:var(--muted)">SCOPE (HASHED)</dt>
+            <dd id="teleScope" style="margin:0; color:#fff;">-</dd>
+          </div>
+          <div
+            style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
+            <dt style="color:var(--muted)">NULLIFIER</dt>
+            <dd id="teleNullifier" style="margin:0; color:#fff;">-</dd>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <dt style="color:var(--muted)">MSG HASH</dt>
+            <dd id="teleMessageHash" style="margin:0; color:#fff;">-</dd>
+          </div>
+        </dl>
+      </div>
+    </aside>
+  </main>
+
+  <div id="walletModal" class="wallet-modal hidden" aria-hidden="true"
+    style="background: rgba(0,0,0,0.8); backdrop-filter:blur(5px);">
+    <div class="wallet-modal-backdrop" id="walletModalBackdrop"></div>
+    <section class="wallet-modal-card panel" role="dialog" aria-modal="true" aria-labelledby="walletModalTitle"
+      style="padding:30px; border-radius: 16px; min-width:350px;">
+      <div class="wallet-modal-head" style="display:flex; justify-content:space-between; margin-bottom:20px;">
+        <h3 id="walletModalTitle" style="margin:0;">Connect Starknet Wallet</h3>
+        <button id="walletModalClose" type="button" class="wallet-modal-close"
+          style="background:transparent; border:none; color:white; font-size:1.2rem; cursor:pointer;"
+          aria-label="Close wallet modal">✕</button>
+      </div>
+      <p id="walletModalHint" class="wallet-modal-hint" style="color:var(--muted);">Choose a browser wallet provider to
+        enter.</p>
+      <div id="walletModalBody" class="wallet-modal-body"
+        style="display:flex; flex-direction:column; gap:10px; margin-top:20px;"></div>
+    </section>
+  </div>
+
+  <div id="emojiPickerOverlay"
+    style="display:none; position:fixed; z-index:9999; top:0; left:0; right:0; bottom:0; background:transparent;"
+    onclick="closeEmojiPicker()">
+    <emoji-picker id="emojiPickerEl" class="dark"
+      style="position:absolute; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></emoji-picker>
+  </div>
+
+  <script src="/main.js" type="module"></script>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+{
+    "name": "semaphore-circuits",
+    "version": "1.0.0",
+    "description": "Semaphore Circom circuits",
+    "dependencies": {
+        "circomlib": "^2.0.5",
+        "snarkjs": "^0.7.3"
+    }
+}

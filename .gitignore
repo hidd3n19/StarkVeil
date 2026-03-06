@@ -1,0 +1,43 @@
+# Dependencies
+**/node_modules/
+
+# Python virtual environments
+**/venv/
+**/.venv/
+
+# Cairo/Starknet build & cache
+/target/
+/.snfoundry_cache/
+**/.snfoundry_cache/
+
+# Logs and runtime output
+*.log
+**/*.log
+
+# Local environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Sensitive/local frontend runtime state
+/semaphore-frontend/data/history.json
+/semaphore-frontend/data/relay_idempotency.json
+/semaphore-frontend/oz_keys.json
+
+# Local screenshots and temp assets
+/semaphore-frontend/screenshots/
+
+# Keep only README markdowns tracked by default
+*.md
+**/*.md
+!README.md
+!**/README.md
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
