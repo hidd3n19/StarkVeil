@@ -8,7 +8,8 @@
     "smoke:phase0": "node scripts/smoke_phase0.mjs",
     "test:phase2": "node scripts/test_contract_adapters.mjs",
     "test:phase3": "node scripts/test_phase3_shadow.mjs",
-    "test:phase45": "node scripts/test_phase45_cutover.mjs"
+    "test:phase45": "node scripts/test_phase45_cutover.mjs",
+    "test:phase55": "node scripts/test_phase55.mjs"
   },
   "dependencies": {
     "circomlibjs": "^0.1.7",

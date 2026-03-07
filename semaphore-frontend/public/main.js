@@ -182,6 +182,8 @@ const walletState = {
   installedWallets: []
 };
 
+const bannerGlowCache = new Map();
+
 // STRK Contract on Sepolia
 const STRK_ADDRESS = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6ab07201858f4287c938D";
 
@@ -250,6 +252,104 @@ function clampDepthValue(value) {
   const digitsOnly = String(value ?? "").replace(/[^\d]/g, "");
   const parsed = Number(digitsOnly || 20);
   return Math.min(32, Math.max(1, Number.isFinite(parsed) ? parsed : 20));
+}
+
+function fallbackBannerGlow() {
+  return {
+    glowA: "rgba(98, 126, 255, 0.28)",
+    glowB: "rgba(87, 210, 255, 0.22)",
+    glowC: "rgba(168, 85, 247, 0.18)"
+  };
+}
+
+function rgbToRgba(color, alpha) {
+  return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`;
+}
+
+function colorDistance(a, b) {
+  return Math.sqrt(
+    ((a[0] || 0) - (b[0] || 0)) ** 2 +
+    ((a[1] || 0) - (b[1] || 0)) ** 2 +
+    ((a[2] || 0) - (b[2] || 0)) ** 2
+  );
+}
+
+async function getBannerGlowPalette(imageUrl) {
+  const source = String(imageUrl || "").trim();
+  if (!source) {
+    return fallbackBannerGlow();
+  }
+  if (bannerGlowCache.has(source)) {
+    return bannerGlowCache.get(source);
+  }
+
+  const palettePromise = new Promise((resolve) => {
+    const img = new Image();
+    if (!source.startsWith("data:")) {
+      img.crossOrigin = "anonymous";
+    }
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const width = 28;
+        const height = 28;
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        const { data } = ctx.getImageData(0, 0, width, height);
+        const buckets = new Map();
+
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i + 3];
+          if (alpha < 180) continue;
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const brightness = (r + g + b) / 3;
+          if (brightness < 24) continue;
+          const key = `${Math.round(r / 32)}-${Math.round(g / 32)}-${Math.round(b / 32)}`;
+          const entry = buckets.get(key) || { count: 0, color: [r, g, b] };
+          entry.count += 1;
+          entry.color = [
+            Math.round((entry.color[0] + r) / 2),
+            Math.round((entry.color[1] + g) / 2),
+            Math.round((entry.color[2] + b) / 2)
+          ];
+          buckets.set(key, entry);
+        }
+
+        const ranked = [...buckets.values()]
+          .sort((a, b) => b.count - a.count)
+          .map((entry) => entry.color);
+
+        const distinct = [];
+        for (const color of ranked) {
+          if (distinct.every((picked) => colorDistance(color, picked) > 72)) {
+            distinct.push(color);
+          }
+          if (distinct.length === 3) break;
+        }
+
+        while (distinct.length < 3) {
+          distinct.push([98, 126, 255]);
+        }
+
+        resolve({
+          glowA: rgbToRgba(distinct[0], 0.28),
+          glowB: rgbToRgba(distinct[1], 0.22),
+          glowC: rgbToRgba(distinct[2], 0.18)
+        });
+      } catch (_error) {
+        resolve(fallbackBannerGlow());
+      }
+    };
+    img.onerror = () => resolve(fallbackBannerGlow());
+    img.src = source;
+  });
+
+  bannerGlowCache.set(source, palettePromise);
+  return palettePromise;
 }
 
 function getCurrentGroupRecord(groupId) {
@@ -1385,9 +1485,19 @@ async function loadGroupPage() {
     const groupTopics = (topics || [])
       .filter((t) => indexedTopicIds ? indexedTopicIds.has(String(t.id)) : String(t.group_id) === String(selectedGroupId))
       .sort((a, b) => Date.parse(b?.created_at || 0) - Date.parse(a?.created_at || 0));
+    const bannerGlow = await getBannerGlowPalette(group.header_image_url);
+    const bannerGlowStyle = `--community-glow-a:${bannerGlow.glowA}; --community-glow-b:${bannerGlow.glowB}; --community-glow-c:${bannerGlow.glowC};`;
     const headerImage = group.header_image_url
-      ? `<img src="${escapeHtml(group.header_image_url)}" alt="header" style="width:100%; height:220px; object-fit:cover; border-radius:14px;">`
-      : `<div style="height:220px; border-radius:14px; background:linear-gradient(145deg,#1f3f71,#2f6ba8);"></div>`;
+      ? `
+        <div class="community-banner" style="${bannerGlowStyle}">
+          <div class="community-banner-frame">
+            <img class="community-banner-blur" src="${escapeHtml(group.header_image_url)}" alt="" aria-hidden="true">
+            <img class="community-banner-main" src="${escapeHtml(group.header_image_url)}" alt="community header">
+            <div class="community-banner-overlay"></div>
+          </div>
+        </div>
+      `
+      : `<div class="community-banner" style="${bannerGlowStyle}"><div class="community-banner-frame" style="background:linear-gradient(145deg,#1f3f71,#2f6ba8);"></div></div>`;
     const groupArchived = isGroupArchived(group);
     const showAdminGear = canManageGroup(group);
     const policyLabel = formatPolicyLabel(group?.eligibility_policy);
