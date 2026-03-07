@@ -25,6 +25,10 @@
 # Sensitive/local frontend runtime state
 /semaphore-frontend/data/history.json
 /semaphore-frontend/data/relay_idempotency.json
+/semaphore-frontend/data/drift_report.latest.json
+/semaphore-frontend/data/indexer_read_model.latest.json
+/semaphore-frontend/data/*.tmp
+/semaphore-frontend/data/*.json.*.tmp
 /semaphore-frontend/oz_keys.json
 
 # Local screenshots and temp assets

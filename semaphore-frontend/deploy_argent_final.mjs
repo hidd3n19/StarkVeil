@@ -3,13 +3,17 @@ import promptSync from "prompt-sync";
 import { Account, json, RpcProvider, Signer, stark } from "starknet";
 
 const prompt = promptSync();
-const RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia";
+const RPC_URL = process.env.STARKNET_RPC_URL || "https://api.cartridge.gg/x/starknet/sepolia";
 const provider = new RpcProvider({ nodeUrl: RPC_URL });
 
 console.log("🚀 Starting Starknet Deployer (Argent X Compatible Signer Hack)");
 
-const accountAddress = "0x042B9476550fAE25897cB9afd568f41Aa3ba9B48342Bf6d949d039565f7eed09";
-const privateKey = "0x03d7441fdaf5b902ea07cfa3980a8ecf888df134657bda9b807f44b629ba86a7";
+const accountAddress = process.env.ARGENT_ACCOUNT_ADDRESS || "";
+const privateKey = process.env.ARGENT_PRIVATE_KEY || "";
+
+if (!accountAddress || !privateKey) {
+    throw new Error("Missing ARGENT_ACCOUNT_ADDRESS or ARGENT_PRIVATE_KEY in environment.");
+}
 
 // The Argent Smart Contract expects [r, s, guardian_signature_length=0] or similar padding
 class ArgentPadSigner extends Signer {

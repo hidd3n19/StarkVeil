@@ -1,11 +1,15 @@
 import fs from "fs";
 import { Account, CallData, RpcProvider, cairo, ec, hash, stark } from "starknet";
 
-const RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia";
+const RPC_URL = process.env.STARKNET_RPC_URL || "https://api.cartridge.gg/x/starknet/sepolia";
 const provider = new RpcProvider({ nodeUrl: RPC_URL });
 
-const argentAddress = "0x042B9476550fAE25897cB9afd568f41Aa3ba9B48342Bf6d949d039565f7eed09";
-const argentPriv = "0x03d7441fdaf5b902ea07cfa3980a8ecf888df134657bda9b807f44b629ba86a7";
+const argentAddress = process.env.ARGENT_ACCOUNT_ADDRESS || "";
+const argentPriv = process.env.ARGENT_PRIVATE_KEY || "";
+
+if (!argentAddress || !argentPriv) {
+    throw new Error("Missing ARGENT_ACCOUNT_ADDRESS or ARGENT_PRIVATE_KEY in environment.");
+}
 
 // Native cairoVersion: "1" handles INVOKES accurately for Argent
 const argentAccount = new Account({ provider, address: argentAddress, signer: argentPriv, cairoVersion: "1" });

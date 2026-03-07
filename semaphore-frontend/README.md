@@ -34,11 +34,24 @@ Default behavior remains off-chain JSON-backed.
 ```bash
 cd semaphore-frontend
 npm run test:phase2
+npm run test:phase3
+npm run test:phase45
 npm run smoke:phase0
 ```
 
 - `test:phase2`: validates contract adapter payload mapping + retry/idempotency relay behavior.
+- `test:phase3`: validates asynchronous shadow write relay + drift monitoring report in `MODE=hybrid`.
+- `test:phase45`: validates indexer read-model + onchain-authority cutover behavior in `MODE=onchain`.
 - `smoke:phase0`: runs baseline flow smoke test (requires local socket permissions).
+
+Drift report endpoint:
+
+```bash
+GET /api/drift/report
+```
+
+Latest drift snapshot is also written to:
+- `semaphore-frontend/data/drift_report.latest.json`
 
 ## Notes
 

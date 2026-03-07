@@ -18,9 +18,11 @@ const discoverOut = document.getElementById("discoverOut");
 const feedOut = document.getElementById("feedOut");
 const feedScopeAllBtn = document.getElementById("feedScopeAll");
 const feedScopeMineBtn = document.getElementById("feedScopeMine");
+const feedScopeCreatedBtn = document.getElementById("feedScopeCreated");
 const feedSearchInput = document.getElementById("feedSearchInput");
 const discoverScopeAllBtn = document.getElementById("discoverScopeAll");
 const discoverScopeMineBtn = document.getElementById("discoverScopeMine");
+const discoverScopeCreatedBtn = document.getElementById("discoverScopeCreated");
 const discoverSearchInput = document.getElementById("discoverSearchInput");
 
 // Admin DOM
@@ -30,7 +32,15 @@ const groupDescriptionEl = document.getElementById("groupDescription");
 const groupHeaderImageUrlEl = document.getElementById("groupHeaderImageUrl");
 const groupHeaderImageFileEl = document.getElementById("groupHeaderImageFile");
 const policyMinTokenEl = document.getElementById("policyMinToken");
-const groupKycRequiredEl = document.getElementById("groupKycRequired");
+const minReputationEl = document.getElementById("minReputation");
+const allowlistIdsEl = document.getElementById("allowlistIds");
+const groupTagsEl = document.getElementById("groupTags");
+const groupRulesEl = document.getElementById("groupRules");
+const groupPolicyOpenEl = document.getElementById("groupPolicyOpen");
+const groupPolicyTokenEnabledEl = document.getElementById("groupPolicyTokenEnabled");
+const groupPolicyRepEnabledEl = document.getElementById("groupPolicyRepEnabled");
+const groupPolicyKycEnabledEl = document.getElementById("groupPolicyKycEnabled");
+const groupPolicyAllowlistEnabledEl = document.getElementById("groupPolicyAllowlistEnabled");
 const groupOut = document.getElementById("groupOut");
 const adminTopicGroup = document.getElementById("adminTopicGroup");
 const adminTopicName = document.getElementById("adminTopicName");
@@ -54,6 +64,9 @@ const navFeed = document.getElementById("navFeed");
 const navCreateGroup = document.getElementById("navCreateGroup");
 const navCreateTopic = document.getElementById("navCreateTopic");
 const navIdentity = document.getElementById("navIdentity");
+const floatingHistoryNav = document.getElementById("floatingHistoryNav");
+const floatingBackBtn = document.getElementById("floatingBackBtn");
+const floatingForwardBtn = document.getElementById("floatingForwardBtn");
 
 const viewDiscover = document.getElementById("viewDiscover");
 const viewFeed = document.getElementById("viewFeed");
@@ -62,10 +75,55 @@ const viewCreateGroup = document.getElementById("viewCreateGroup");
 const viewCreateTopic = document.getElementById("viewCreateTopic");
 const viewIdentity = document.getElementById("viewIdentity");
 const viewTopic = document.getElementById("viewTopic");
+const viewAdminTools = document.getElementById("viewAdminTools");
 const groupPageOut = document.getElementById("groupPageOut");
 const topicPageOut = document.getElementById("topicPageOut");
 const backToDiscover = document.getElementById("backToDiscover");
 const backToGroup = document.getElementById("backToGroup");
+const adminGroupNameLabel = document.getElementById("adminGroupNameLabel");
+const adminMemberCommitmentInput = document.getElementById("adminMemberCommitmentInput");
+const adminMemberDropdownToggle = document.getElementById("adminMemberDropdownToggle");
+const adminMemberDropdown = document.getElementById("adminMemberDropdown");
+const adminMemberLastAction = document.getElementById("adminMemberLastAction");
+const adminPolicyOpen = document.getElementById("adminPolicyOpen");
+const adminPolicyTokenEnabled = document.getElementById("adminPolicyTokenEnabled");
+const adminPolicyRepEnabled = document.getElementById("adminPolicyRepEnabled");
+const adminPolicyKycEnabled = document.getElementById("adminPolicyKycEnabled");
+const adminPolicyAllowlistEnabled = document.getElementById("adminPolicyAllowlistEnabled");
+const adminPolicyMinToken = document.getElementById("adminPolicyMinToken");
+const adminPolicyMinReputation = document.getElementById("adminPolicyMinReputation");
+const adminPolicyRequireKyc = document.getElementById("adminPolicyRequireKyc");
+const adminPolicyAllowlist = document.getElementById("adminPolicyAllowlist");
+const adminAddMemberBtn = document.getElementById("adminAddMemberBtn");
+const adminRemoveMemberBtn = document.getElementById("adminRemoveMemberBtn");
+const adminUpdatePolicyBtn = document.getElementById("adminUpdatePolicyBtn");
+const adminGroupMetaName = document.getElementById("adminGroupMetaName");
+const adminGroupMetaDescription = document.getElementById("adminGroupMetaDescription");
+const adminGroupMetaHeaderImage = document.getElementById("adminGroupMetaHeaderImage");
+const adminGroupMetaTags = document.getElementById("adminGroupMetaTags");
+const adminGroupMetaRules = document.getElementById("adminGroupMetaRules");
+const adminUpdateMetadataBtn = document.getElementById("adminUpdateMetadataBtn");
+const adminTargetIdentityInput = document.getElementById("adminTargetIdentityInput");
+const adminAddAdminBtn = document.getElementById("adminAddAdminBtn");
+const adminRemoveAdminBtn = document.getElementById("adminRemoveAdminBtn");
+const adminTargetIdentityToggle = document.getElementById("adminTargetIdentityToggle");
+const adminTargetIdentityDropdown = document.getElementById("adminTargetIdentityDropdown");
+const adminArchiveGroupBtn = document.getElementById("adminArchiveGroupBtn");
+const adminReopenGroupBtn = document.getElementById("adminReopenGroupBtn");
+const adminToolsOut = document.getElementById("adminToolsOut");
+const topicEditModal = document.getElementById("topicEditModal");
+const topicEditCloseBtn = document.getElementById("topicEditCloseBtn");
+const topicEditCancelBtn = document.getElementById("topicEditCancelBtn");
+const topicEditSaveBtn = document.getElementById("topicEditSaveBtn");
+const topicEditName = document.getElementById("topicEditName");
+const topicEditMetaHint = document.getElementById("topicEditMetaHint");
+const topicEditBody = document.getElementById("topicEditBody");
+const topicEditImageUrl = document.getElementById("topicEditImageUrl");
+const topicEditLinkUrl = document.getElementById("topicEditLinkUrl");
+const groupRulesModal = document.getElementById("groupRulesModal");
+const groupRulesModalCloseBtn = document.getElementById("groupRulesModalCloseBtn");
+const groupRulesModalTitle = document.getElementById("groupRulesModalTitle");
+const groupRulesModalBody = document.getElementById("groupRulesModalBody");
 
 // Advanced Identity DOM
 const advCreateIdentity = document.getElementById("advCreateIdentity");
@@ -97,8 +155,18 @@ const buttons = {
 let lastIdentity = null;
 let selectedGroupId = null;
 let selectedTopicId = null;
+let selectedAdminGroupId = null;
 let currentViewId = null;
+let lastKnownState = null;
+let currentRouteSnapshot = null;
+let topicEditDraftId = null;
+const adminMemberUiState = {
+  fromDropdown: false,
+  suggestedAction: null,
+  lastInteraction: "none"
+};
 const viewHistoryStack = [];
+const viewForwardStack = [];
 const uiFilters = {
   feedScope: "all",
   feedQuery: "",
@@ -137,6 +205,12 @@ function setBusy(button, isBusy) {
   button.style.opacity = isBusy ? "0.5" : "1";
 }
 
+function renderLucideIcons() {
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
+}
+
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     if (!file) {
@@ -159,7 +233,116 @@ function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function setScopeButtons(allBtn, mineBtn, scope) {
+function parseIdentityListInput(text) {
+  return String(text || "")
+    .split(/[\n,]+/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function shortCommitment(value) {
+  const text = String(value || "");
+  if (!text) return "-";
+  return text.length > 20 ? `${text.slice(0, 10)}...${text.slice(-8)}` : text;
+}
+
+function clampDepthValue(value) {
+  const digitsOnly = String(value ?? "").replace(/[^\d]/g, "");
+  const parsed = Number(digitsOnly || 20);
+  return Math.min(32, Math.max(1, Number.isFinite(parsed) ? parsed : 20));
+}
+
+function getCurrentGroupRecord(groupId) {
+  return lastKnownState?.groups?.[String(groupId)] || null;
+}
+
+function getTopicGroupRecord(topic) {
+  return getCurrentGroupRecord(topic?.group_id);
+}
+
+function isGroupArchived(group) {
+  return String(group?.status || "active") === "archived";
+}
+
+function isTopicArchived(topic) {
+  return String(topic?.status || "active") === "archived";
+}
+
+function isTopicDeleted(topic) {
+  return String(topic?.status || "active") === "deleted";
+}
+
+function isTopicActive(topic) {
+  return !isTopicArchived(topic) && !isTopicDeleted(topic);
+}
+
+function isTopicOwner(topic) {
+  return String(topic?.author_identity_id || "") === String(lastIdentity?.id || "");
+}
+
+function topicScopeValue(topic) {
+  return String(topic?.scope || `${topic?.group_id || ""}:${topic?.id || ""}`);
+}
+
+function topicActionIcon(type) {
+  if (type === "edit") {
+    return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg>`;
+  }
+  if (type === "delete") {
+    return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+  }
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg>`;
+}
+
+function canEditOwnTopic(topic) {
+  const group = getTopicGroupRecord(topic);
+  return Boolean(isTopicOwner(topic) && isTopicActive(topic) && !isGroupArchived(group));
+}
+
+function canDeleteOwnTopic(topic) {
+  const group = getTopicGroupRecord(topic);
+  return Boolean(isTopicOwner(topic) && !isTopicDeleted(topic) && !isGroupArchived(group));
+}
+
+function canArchiveTopic(topic) {
+  const group = getTopicGroupRecord(topic);
+  return Boolean(group && canManageGroup(group) && !isTopicDeleted(topic));
+}
+
+function canManageGroup(group) {
+  const admins = getGroupAdminIds(group);
+  const activeId = String(lastIdentity?.id || "");
+  return Boolean(activeId && admins.includes(activeId));
+}
+
+function getGroupAdminIds(group) {
+  const admins = new Set(Array.isArray(group?.admins) ? group.admins.map(String) : []);
+  if (group?.created_by_identity_id) {
+    admins.add(String(group.created_by_identity_id));
+  }
+  return [...admins];
+}
+
+function setAdminMemberInteraction(source, suggestedAction = null) {
+  adminMemberUiState.lastInteraction = source;
+  adminMemberUiState.suggestedAction = suggestedAction;
+  if (adminMemberLastAction) {
+    const hint = suggestedAction ? ` (${suggestedAction})` : "";
+    adminMemberLastAction.textContent = `Last interaction: ${source}${hint}`;
+  }
+}
+
+function updateAdminMemberButtonsAvailability() {
+  const hasInput = String(adminMemberCommitmentInput?.value || "").trim().length > 0;
+  if (adminAddMemberBtn) {
+    adminAddMemberBtn.disabled = !hasInput;
+  }
+  if (adminRemoveMemberBtn) {
+    adminRemoveMemberBtn.disabled = !hasInput;
+  }
+}
+
+function setScopeButtons(allBtn, mineBtn, createdBtn, scope) {
   const applyStyle = (button, isActive) => {
     if (!button) return;
     button.style.background = isActive ? "rgba(75, 85, 99, 0.55)" : "transparent";
@@ -170,11 +353,12 @@ function setScopeButtons(allBtn, mineBtn, scope) {
   };
   applyStyle(allBtn, scope === "all");
   applyStyle(mineBtn, scope === "mine");
+  applyStyle(createdBtn, scope === "created");
 }
 
 function syncFilterControlsUi() {
-  setScopeButtons(feedScopeAllBtn, feedScopeMineBtn, uiFilters.feedScope);
-  setScopeButtons(discoverScopeAllBtn, discoverScopeMineBtn, uiFilters.discoverScope);
+  setScopeButtons(feedScopeAllBtn, feedScopeMineBtn, feedScopeCreatedBtn, uiFilters.feedScope);
+  setScopeButtons(discoverScopeAllBtn, discoverScopeMineBtn, discoverScopeCreatedBtn, uiFilters.discoverScope);
 }
 
 function escapeHtml(input) {
@@ -199,8 +383,173 @@ function formatAgeLabel(isoDate) {
   return `${days}d`;
 }
 
+function findReplyTextarea(textareaId, topicId = null) {
+  const direct = document.getElementById(String(textareaId || ""));
+  if (direct) return direct;
+
+  const fallbackIds = [
+    topicId ? `reply-page-${topicId}` : null,
+    topicId ? `reply-feed-${topicId}` : null
+  ].filter(Boolean);
+
+  const candidates = Array.from(
+    document.querySelectorAll("textarea[id^='reply-page-'], textarea[id^='reply-feed-'], textarea[id^='reply-input-']")
+  );
+  return candidates.find((node) => fallbackIds.includes(node.id) || node.id === String(textareaId || "")) || null;
+}
+
+function findBestReplyTextarea(textareaId, topicId = null) {
+  const direct = findReplyTextarea(textareaId, topicId);
+  if (direct && String(direct.value || "").trim()) {
+    return direct;
+  }
+  const candidates = Array.from(
+    document.querySelectorAll("textarea[id^='reply-page-'], textarea[id^='reply-feed-'], textarea[id^='reply-input-']")
+  );
+  return candidates.find((node) => String(node.value || "").trim()) || direct;
+}
+
+function normalizeEligibilityPolicy(policy) {
+  const source = policy && typeof policy === "object" ? policy : {};
+  const rawType = String(source.type || source.mode || "open");
+  const type = rawType === "rep_min" ? "reputation_min" : rawType;
+  const allowlist = Array.isArray(source.allowlist_identity_ids)
+    ? source.allowlist_identity_ids.map(String).filter(Boolean)
+    : Array.isArray(source.allowlist_ids)
+      ? source.allowlist_ids.map(String).filter(Boolean)
+      : [];
+  const minToken = Number(source.min_token_balance || 0);
+  const minRep = Number(source.min_reputation || 0);
+  const requireKyc = Boolean(source.require_kyc);
+
+  if (type === "allowlist" || allowlist.length > 0) {
+    return {
+      type: "allowlist",
+      open: false,
+      min_token_balance: 0,
+      min_reputation: 0,
+      require_kyc: false,
+      allowlist_identity_ids: allowlist
+    };
+  }
+  if (type === "token_min" || type === "reputation_min" || type === "kyc" || minToken > 0 || minRep > 0 || requireKyc) {
+    return {
+      type: "composite",
+      open: false,
+      min_token_balance: minToken,
+      min_reputation: minRep,
+      require_kyc: requireKyc,
+      allowlist_identity_ids: []
+    };
+  }
+  return {
+    type: "open",
+    open: true,
+    min_token_balance: 0,
+    min_reputation: 0,
+    require_kyc: false,
+    allowlist_identity_ids: []
+  };
+}
+
+function formatPolicyLabel(policy) {
+  const normalized = normalizeEligibilityPolicy(policy);
+  if (normalized.type === "open") {
+    return "Open";
+  }
+  if (normalized.type === "allowlist") {
+    return "Allowlist Only";
+  }
+  const parts = [];
+  if (normalized.min_token_balance > 0) {
+    parts.push(`Req: ${normalized.min_token_balance} STRK`);
+  }
+  if (normalized.min_reputation > 0) {
+    parts.push(`Req: ${normalized.min_reputation} Rep`);
+  }
+  if (normalized.require_kyc) {
+    parts.push("KYC Required");
+  }
+  return parts.join(" + ") || "Open";
+}
+
+function buildPolicySummaryParts(policy) {
+  const normalized = normalizeEligibilityPolicy(policy);
+  if (normalized.type === "open") {
+    return ["Open"];
+  }
+  if (normalized.type === "allowlist") {
+    return ["Allowlist Only"];
+  }
+  const parts = [];
+  if (normalized.min_token_balance > 0) parts.push(`${normalized.min_token_balance} STRK`);
+  if (normalized.min_reputation > 0) parts.push(`${normalized.min_reputation} Rep`);
+  if (normalized.require_kyc) parts.push("KYC");
+  return parts;
+}
+
+function syncPolicyCheckboxes(openEl, tokenEl, repEl, kycEl, allowlistEl, tokenInputEl, repInputEl, allowlistInputEl) {
+  const openChecked = Boolean(openEl?.checked);
+  const allowlistChecked = Boolean(allowlistEl?.checked);
+  const compositeChecked = Boolean(tokenEl?.checked || repEl?.checked || kycEl?.checked);
+
+  if (openChecked) {
+    if (allowlistEl) allowlistEl.checked = false;
+    if (tokenEl) tokenEl.checked = false;
+    if (repEl) repEl.checked = false;
+    if (kycEl) kycEl.checked = false;
+  } else if (allowlistChecked) {
+    if (openEl) openEl.checked = false;
+    if (tokenEl) tokenEl.checked = false;
+    if (repEl) repEl.checked = false;
+    if (kycEl) kycEl.checked = false;
+  } else if (compositeChecked) {
+    if (openEl) openEl.checked = false;
+    if (allowlistEl) allowlistEl.checked = false;
+  }
+
+  if (tokenInputEl) tokenInputEl.disabled = !tokenEl?.checked || openEl?.checked || allowlistEl?.checked;
+  if (repInputEl) repInputEl.disabled = !repEl?.checked || openEl?.checked || allowlistEl?.checked;
+  if (allowlistInputEl) allowlistInputEl.disabled = !allowlistEl?.checked || openEl?.checked;
+
+  const setRowState = (controlEl, shouldDim) => {
+    const row = controlEl?.closest("label");
+    if (!row) return;
+    row.style.opacity = shouldDim ? "0.45" : "1";
+  };
+
+  setRowState(openEl, compositeChecked || allowlistChecked);
+  setRowState(allowlistEl, openChecked || compositeChecked);
+  setRowState(tokenEl, openChecked || allowlistChecked);
+  setRowState(repEl, openChecked || allowlistChecked);
+  setRowState(kycEl, openChecked || allowlistChecked);
+}
+
+function hasAnyPolicySelected(openEl, tokenEl, repEl, kycEl, allowlistEl) {
+  return Boolean(openEl?.checked || tokenEl?.checked || repEl?.checked || kycEl?.checked || allowlistEl?.checked);
+}
+
+function openGroupRulesModal(group) {
+  if (!groupRulesModalBody || !groupRulesModalTitle || !groupRulesModal) return;
+  const rules = Array.isArray(group?.rules) ? group.rules : [];
+  groupRulesModalTitle.textContent = `${String(group?.name || group?.id || "Community")} Rules`;
+  groupRulesModalBody.innerHTML = rules.length > 0
+    ? rules.map((rule, index) => `<div style="padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.04);">${index + 1}. ${escapeHtml(rule)}</div>`).join("")
+    : `<div style="color:var(--muted);">No rules configured for this community.</div>`;
+  groupRulesModal.classList.remove("hidden");
+}
+
+function closeGroupRulesModal() {
+  groupRulesModal?.classList.add("hidden");
+}
+
 function renderTopicCard(topic) {
   const isPoll = topic.type === "poll";
+  const group = getTopicGroupRecord(topic);
+  const topicDeleted = isTopicDeleted(topic);
+  const topicArchived = isTopicArchived(topic);
+  const groupArchived = isGroupArchived(group);
+  const topicLocked = topicArchived || topicDeleted || groupArchived;
   const yesCount = Number(topic?.poll?.counts?.YES ?? 0);
   const noCount = Number(topic?.poll?.counts?.NO ?? 0);
   const total = Math.max(0, Number(topic?.poll?.total_votes ?? (yesCount + noCount)));
@@ -209,13 +558,35 @@ function renderTopicCard(topic) {
   const safeGroup = encodeURIComponent(topic.group_id);
   const safeName = encodeURIComponent(topic.name);
   const safeTopicId = encodeURIComponent(topic.id);
+  const safeScope = encodeURIComponent(topicScopeValue(topic));
   const imageBlock = topic.image_url
     ? `<img src="${escapeHtml(topic.image_url)}" alt="topic" style="width:100%; height:210px; object-fit:cover; border-radius:14px 14px 0 0;">`
     : `<div style="height:210px; border-radius:14px 14px 0 0; background:linear-gradient(140deg,#3968af,#76a8dd);"></div>`;
 
-  const bodyHtml = topic.body ? escapeHtml(topic.body) : "";
+  const bodyHtml = topicDeleted ? "" : (topic.body ? escapeHtml(topic.body) : "");
   const isTruncated = bodyHtml.length > 180 && !selectedTopicId;
   const truncBody = isTruncated ? bodyHtml.substring(0, 180) + '...' : bodyHtml;
+  const statusBadges = [
+    topicDeleted ? `<span class="chip" style="background:#3f3f46; color:#e5e7eb;">Deleted</span>` : "",
+    topicArchived ? `<span class="chip" style="background:rgba(245,158,11,0.14); color:#fcd34d;">Archived</span>` : "",
+    groupArchived ? `<span class="chip" style="background:rgba(248,113,113,0.12); color:#fca5a5;">Community Closed</span>` : ""
+  ].filter(Boolean).join("");
+  const topicActionButtons = selectedTopicId
+    ? `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        ${canEditOwnTopic(topic) ? `<button title="Edit Post" aria-label="Edit Post" onclick="openTopicEditModal('${escapeHtml(topic.id)}')" class="topic-action-btn edit">${topicActionIcon("edit")}</button>` : ""}
+        ${canDeleteOwnTopic(topic) ? `<button title="Delete Post" aria-label="Delete Post" onclick="deleteTopicConfirm('${escapeHtml(topic.id)}')" class="topic-action-btn delete">${topicActionIcon("delete")}</button>` : ""}
+        ${canArchiveTopic(topic) ? `<button title="${topicArchived ? "Reopen Post" : "Archive Post"}" aria-label="${topicArchived ? "Reopen Post" : "Archive Post"}" onclick="toggleTopicArchive('${escapeHtml(topic.id)}', '${topicArchived ? "active" : "archived"}')" class="topic-action-btn archive">${topicActionIcon("archive")}</button>` : ""}
+      </div>
+    `
+    : "";
+  const lockNotice = topicDeleted
+    ? `<div style="margin:10px 0 12px 0; padding:10px 12px; border-radius:10px; background:#27272a; color:#d4d4d8;">This topic was soft-deleted by its author and is now read-only.</div>`
+    : topicArchived
+      ? `<div style="margin:10px 0 12px 0; padding:10px 12px; border-radius:10px; background:#422006; color:#fde68a;">This topic is archived and read-only.</div>`
+      : groupArchived
+        ? `<div style="margin:10px 0 12px 0; padding:10px 12px; border-radius:10px; background:#3f1d1d; color:#fecaca;">This community is archived. Posts remain visible but interaction is locked.</div>`
+        : "";
 
   const openIconSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
 
@@ -226,10 +597,14 @@ function renderTopicCard(topic) {
     <article style="background:#f6f8fa; color:#1f2937; border:1px solid #d1d5db; border-radius:16px; overflow:hidden;">
       ${imageBlock}
       <div style="padding:16px;">
-        <div style="font-size:1.3rem; color:#111827; margin-bottom:6px; cursor:pointer; font-weight:bold;" onclick="location.hash='#/group/${safeGroup}/topic/${escapeHtml(topic.id)}'">${escapeHtml(topic.name)}</div>
-        <div style="font-size:0.82rem; color:#6b7280; margin-bottom:12px;">Group: ${escapeHtml(topic.group_id)}</div>
-        
-        ${topic.body ? `<div id="body-${topic.id}" data-full="${bodyHtml}" data-trunc="${truncBody}" style="margin:0 0 12px 0; color:#4b5563; white-space: pre-wrap; font-size:0.95rem;">${truncBody}</div>` : ""}
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:6px;">
+          <div style="font-size:1.3rem; color:#111827; cursor:pointer; font-weight:bold;" onclick="location.hash='#/group/${safeGroup}/topic/${escapeHtml(topic.id)}'">${escapeHtml(topic.name)}</div>
+          ${selectedTopicId ? topicActionButtons : ""}
+        </div>
+        <div style="font-size:0.82rem; color:#6b7280; margin-bottom:12px;">Community: ${escapeHtml(topic.group_id)}</div>
+        ${statusBadges ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">${statusBadges}</div>` : ""}
+        ${lockNotice}
+        ${bodyHtml ? `<div id="body-${topic.id}" data-full="${bodyHtml}" data-trunc="${truncBody}" style="margin:0 0 12px 0; color:#4b5563; white-space: pre-wrap; font-size:0.95rem;">${truncBody}</div>` : ""}
         ${isTruncated ? `<button onclick="const b=document.getElementById('body-${topic.id}'); if(b.dataset.expanded==='1'){ b.innerHTML=b.dataset.trunc; b.dataset.expanded='0'; this.innerText='Show More ↓'; } else { b.innerHTML=b.dataset.full; b.dataset.expanded='1'; this.innerText='Show Less ↑'; }" style="margin-bottom:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; padding:0; font-weight:bold;">Show More ↓</button>` : ""}
         
         ${isPoll ? `
@@ -248,20 +623,22 @@ function renderTopicCard(topic) {
             </div>
             <div style="font-size:0.82rem; color:#6b7280;">Total votes: ${total}</div>
             <div style="display:flex; gap:10px;">
-              <button class="btn-blue" style="flex:1;" onclick="submitPollVote(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeName}'), decodeURIComponent('${safeTopicId}'), 'YES')">Vote YES</button>
-              <button class="btn-blue" style="flex:1;" onclick="submitPollVote(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeName}'), decodeURIComponent('${safeTopicId}'), 'NO')">Vote NO</button>
+              <button class="btn-blue" style="flex:1;" ${topicLocked ? "disabled" : ""} onclick="submitPollVote(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeScope}'), decodeURIComponent('${safeTopicId}'), 'YES')">Yes</button>
+              <button class="btn-blue" style="flex:1;" ${topicLocked ? "disabled" : ""} onclick="submitPollVote(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeScope}'), decodeURIComponent('${safeTopicId}'), 'NO')">NO</button>
             </div>
-            ${renderReplyControls ? `
+            ${renderReplyControls && !topicLocked ? `
               <div style="display:flex; gap:10px; flex-direction:column; margin-top:10px; border-top:1px solid #e5e7eb; padding-top:14px;">
                 <textarea id="reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}" rows="2" placeholder="Write your comment..." style="background:#ffffff; color:#111827; border:1px solid #d1d5db;"></textarea>
-                <button class="btn-blue" onclick="submitSignalText(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeName}'), '${escapeHtml(topic.id)}', 'reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}', null, 'poll')">Submit Comment</button>
+                <button class="btn-blue" onclick="submitSignalText(this, decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeScope}'), '${escapeHtml(topic.id)}', 'reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}', null, 'poll')">Submit Comment</button>
               </div>
             ` : ""}
           </div>
         ` : `
           <div style="display:flex; gap:10px; flex-direction:column; margin-top:14px;">
+            ${topicLocked ? "" : `
             <textarea id="reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}" rows="2" placeholder="Write your anonymous reply..." style="background:#ffffff; color:#111827; border:1px solid #d1d5db;"></textarea>
-            <button class="btn-blue" onclick="submitSignalText(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeName}'), '${escapeHtml(topic.id)}', 'reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}', null, 'open')">Submit Anonymous Reply</button>
+            <button class="btn-blue" onclick="submitSignalText(this, decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeScope}'), '${escapeHtml(topic.id)}', 'reply-${selectedTopicId ? 'page' : 'feed'}-${escapeHtml(topic.id)}', null, 'open')">Submit Anonymous Reply</button>
+            `}
           </div>
         `}
         <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; color:#9ca3af; font-size:0.8rem;">
@@ -357,9 +734,11 @@ function updateWalletUi() {
     walletStatusLanding.textContent = "No wallet detected";
     landingOverlay.classList.remove("hidden");
     appShell.style.display = "none";
+    if (floatingHistoryNav) floatingHistoryNav.style.display = "none";
   } else {
     landingOverlay.classList.add("hidden");
     appShell.style.display = "grid";
+    if (floatingHistoryNav) floatingHistoryNav.style.display = "flex";
     profWallet.textContent = shortAddress(walletState.address);
     profStatus.textContent = "Connected";
     profStatus.style.color = "var(--good)";
@@ -488,79 +867,76 @@ function createWalletOptionRow(walletMeta) {
   return row;
 }
 
+function captureRouteSnapshot(viewId = currentViewId) {
+  return {
+    viewId: viewId || null,
+    groupId: selectedGroupId || null,
+    topicId: selectedTopicId || null,
+    adminGroupId: selectedAdminGroupId || null
+  };
+}
+
+function sameRouteSnapshot(a, b) {
+  return JSON.stringify(a || null) === JSON.stringify(b || null);
+}
+
 function rememberViewTransition(nextViewId) {
   if (!nextViewId) return;
-  if (currentViewId && currentViewId !== nextViewId) {
-    viewHistoryStack.push(currentViewId);
+  const nextSnapshot = captureRouteSnapshot(nextViewId);
+  if (currentRouteSnapshot && !sameRouteSnapshot(currentRouteSnapshot, nextSnapshot)) {
+    viewHistoryStack.push(currentRouteSnapshot);
     if (viewHistoryStack.length > 64) {
       viewHistoryStack.shift();
     }
+    viewForwardStack.length = 0;
   }
   currentViewId = nextViewId;
+  currentRouteSnapshot = nextSnapshot;
 }
 
 function popPreviousView() {
   while (viewHistoryStack.length > 0) {
     const candidate = viewHistoryStack.pop();
-    if (candidate && candidate !== currentViewId) {
+    if (candidate && !sameRouteSnapshot(candidate, currentRouteSnapshot)) {
       return candidate;
     }
   }
   return null;
 }
 
-function applyViewWithoutHash(viewId) {
-  if (!viewId) return false;
-  if (viewId === "viewGroup" && selectedGroupId) {
-    setView("viewGroup");
-    return true;
+function popForwardView() {
+  while (viewForwardStack.length > 0) {
+    const candidate = viewForwardStack.pop();
+    if (candidate && !sameRouteSnapshot(candidate, currentRouteSnapshot)) {
+      return candidate;
+    }
   }
-  if (viewId === "viewTopic" && selectedGroupId && selectedTopicId) {
-    setView("viewTopic");
-    return true;
+  return null;
+}
+
+function applyRouteSnapshot(snapshot, { storeForward = false } = {}) {
+  if (!snapshot?.viewId) return false;
+  if (storeForward && currentRouteSnapshot) {
+    viewForwardStack.push(currentRouteSnapshot);
   }
-  if (viewId === "viewDiscover") {
-    selectedGroupId = null;
-    selectedTopicId = null;
-    location.hash = "";
-    setView("viewDiscover");
-    return true;
-  }
-  if (viewId === "viewFeed") {
-    selectedGroupId = null;
-    selectedTopicId = null;
-    location.hash = "";
-    setView("viewFeed");
-    return true;
-  }
-  if (viewId === "viewCreateGroup") {
-    selectedGroupId = null;
-    selectedTopicId = null;
-    location.hash = "";
-    setView("viewCreateGroup");
-    return true;
-  }
-  if (viewId === "viewCreateTopic") {
-    selectedGroupId = null;
-    selectedTopicId = null;
-    location.hash = "";
-    setView("viewCreateTopic");
-    return true;
-  }
-  if (viewId === "viewIdentity") {
-    selectedGroupId = null;
-    selectedTopicId = null;
-    location.hash = "";
-    setView("viewIdentity");
-    return true;
-  }
-  return false;
+  selectedGroupId = snapshot.groupId || null;
+  selectedTopicId = snapshot.topicId || null;
+  selectedAdminGroupId = snapshot.adminGroupId || null;
+  setView(snapshot.viewId, { skipHistory: true });
+  currentViewId = snapshot.viewId;
+  currentRouteSnapshot = captureRouteSnapshot(snapshot.viewId);
+  return true;
 }
 
 // Router
-function setView(viewId) {
-  rememberViewTransition(viewId);
-  const views = [viewDiscover, viewFeed, viewGroup, viewTopic, viewCreateGroup, viewCreateTopic, viewIdentity];
+function setView(viewId, options = {}) {
+  if (!options.skipHistory) {
+    rememberViewTransition(viewId);
+  } else {
+    currentViewId = viewId;
+    currentRouteSnapshot = captureRouteSnapshot(viewId);
+  }
+  const views = [viewDiscover, viewFeed, viewGroup, viewTopic, viewCreateGroup, viewCreateTopic, viewIdentity, viewAdminTools];
   const navs = [navDiscover, navFeed, navCreateGroup, navCreateTopic, navIdentity];
 
   views.forEach(v => v.classList.add("hidden"));
@@ -573,40 +949,76 @@ function setView(viewId) {
   if (viewId === 'viewCreateGroup') { viewCreateGroup.classList.remove("hidden"); navCreateGroup.classList.add("active"); }
   if (viewId === 'viewCreateTopic') { viewCreateTopic.classList.remove("hidden"); navCreateTopic.classList.add("active"); loadAdmin(); }
   if (viewId === 'viewIdentity') { viewIdentity.classList.remove("hidden"); navIdentity.classList.add("active"); renderLocalIdentities(); }
+  if (viewId === 'viewAdminTools') { viewAdminTools.classList.remove("hidden"); loadAdmin(); }
 }
 
 function applyRouteFromHash() {
   const hash = String(location.hash || "");
   if (hash.startsWith("#/group/")) {
-    const parts = hash.replace("#/group/", "").split("/topic/");
+    const route = hash.replace("#/group/", "");
+    const adminSuffix = "/admin";
+    if (route.endsWith(adminSuffix)) {
+      selectedGroupId = decodeURIComponent(route.slice(0, -adminSuffix.length));
+      selectedTopicId = null;
+      selectedAdminGroupId = selectedGroupId;
+      const nextSnapshot = captureRouteSnapshot("viewAdminTools");
+      if (!sameRouteSnapshot(nextSnapshot, currentRouteSnapshot)) {
+        setView("viewAdminTools");
+      }
+      return;
+    }
+
+    const parts = route.split("/topic/");
     selectedGroupId = decodeURIComponent(parts[0] || "");
+    selectedAdminGroupId = null;
     if (parts.length > 1) {
       selectedTopicId = decodeURIComponent(parts[1] || "");
-      setView("viewTopic");
+      const nextSnapshot = captureRouteSnapshot("viewTopic");
+      if (!sameRouteSnapshot(nextSnapshot, currentRouteSnapshot)) {
+        setView("viewTopic");
+      }
     } else {
       selectedTopicId = null;
-      setView("viewGroup");
+      const nextSnapshot = captureRouteSnapshot("viewGroup");
+      if (!sameRouteSnapshot(nextSnapshot, currentRouteSnapshot)) {
+        setView("viewGroup");
+      }
     }
     return;
   }
   selectedGroupId = null;
   selectedTopicId = null;
+  selectedAdminGroupId = null;
 }
 
 window.openGroupPage = (groupId) => {
   if (!groupId) return;
   selectedGroupId = decodeURIComponent(String(groupId));
-  location.hash = `#/group/${encodeURIComponent(selectedGroupId)}`;
+  selectedAdminGroupId = null;
+  selectedTopicId = null;
   setView("viewGroup");
+  location.hash = `#/group/${encodeURIComponent(selectedGroupId)}`;
+};
+
+window.openGroupAdminTools = (groupId) => {
+  if (!groupId) return;
+  selectedAdminGroupId = decodeURIComponent(String(groupId));
+  selectedGroupId = selectedAdminGroupId;
+  selectedTopicId = null;
+  setView("viewAdminTools");
+  location.hash = `#/group/${encodeURIComponent(selectedAdminGroupId)}/admin`;
+};
+
+window.openRulesModalForGroup = (groupId) => {
+  const resolvedGroupId = decodeURIComponent(String(groupId || ""));
+  const group = lastKnownState?.groups?.[resolvedGroupId];
+  if (!group) return;
+  openGroupRulesModal(group);
 };
 
 backToDiscover?.addEventListener("click", () => {
   const previous = popPreviousView();
-  if (previous && applyViewWithoutHash(previous)) {
-    return;
-  }
-  if (window.history.length > 1) {
-    window.history.back();
+  if (previous && applyRouteSnapshot(previous, { storeForward: true })) {
     return;
   }
   selectedGroupId = null;
@@ -616,11 +1028,7 @@ backToDiscover?.addEventListener("click", () => {
 
 backToGroup?.addEventListener("click", () => {
   const previous = popPreviousView();
-  if (previous && applyViewWithoutHash(previous)) {
-    return;
-  }
-  if (window.history.length > 1) {
-    window.history.back();
+  if (previous && applyRouteSnapshot(previous, { storeForward: true })) {
     return;
   }
   selectedTopicId = null;
@@ -632,7 +1040,110 @@ backToGroup?.addEventListener("click", () => {
   setView("viewDiscover");
 });
 
+floatingBackBtn?.addEventListener("click", () => {
+  const previous = popPreviousView();
+  if (previous) {
+    applyRouteSnapshot(previous, { storeForward: true });
+  }
+});
+
+floatingForwardBtn?.addEventListener("click", () => {
+  const next = popForwardView();
+  if (next) {
+    viewHistoryStack.push(currentRouteSnapshot);
+    applyRouteSnapshot(next);
+  }
+});
+
+topicEditCloseBtn?.addEventListener("click", closeTopicEditModal);
+topicEditCancelBtn?.addEventListener("click", closeTopicEditModal);
+topicEditModal?.addEventListener("click", (event) => {
+  if (event.target === topicEditModal) {
+    closeTopicEditModal();
+  }
+});
+groupRulesModalCloseBtn?.addEventListener("click", closeGroupRulesModal);
+groupRulesModal?.addEventListener("click", (event) => {
+  if (event.target === groupRulesModal) {
+    closeGroupRulesModal();
+  }
+});
+topicEditSaveBtn?.addEventListener("click", async () => {
+  setBusy(topicEditSaveBtn, true);
+  try {
+    await saveTopicEditModal();
+  } catch (error) {
+    alert("Post edit failed: " + error.message);
+  } finally {
+    setBusy(topicEditSaveBtn, false);
+  }
+});
+
 window.addEventListener("hashchange", applyRouteFromHash);
+
+[
+  groupPolicyOpenEl,
+  groupPolicyTokenEnabledEl,
+  groupPolicyRepEnabledEl,
+  groupPolicyKycEnabledEl,
+  groupPolicyAllowlistEnabledEl
+].forEach((checkbox) => checkbox?.addEventListener("change", () => {
+  syncPolicyCheckboxes(
+    groupPolicyOpenEl,
+    groupPolicyTokenEnabledEl,
+    groupPolicyRepEnabledEl,
+    groupPolicyKycEnabledEl,
+    groupPolicyAllowlistEnabledEl,
+    policyMinTokenEl,
+    minReputationEl,
+    allowlistIdsEl
+  );
+}));
+
+[
+  adminPolicyOpen,
+  adminPolicyTokenEnabled,
+  adminPolicyRepEnabled,
+  adminPolicyKycEnabled,
+  adminPolicyAllowlistEnabled
+].forEach((checkbox) => checkbox?.addEventListener("change", () => {
+  syncPolicyCheckboxes(
+    adminPolicyOpen,
+    adminPolicyTokenEnabled,
+    adminPolicyRepEnabled,
+    adminPolicyKycEnabled,
+    adminPolicyAllowlistEnabled,
+    adminPolicyMinToken,
+    adminPolicyMinReputation,
+    adminPolicyAllowlist
+  );
+}));
+
+document.getElementById("groupDepth")?.addEventListener("input", (event) => {
+  const input = event.currentTarget;
+  input.value = String(clampDepthValue(input.value));
+});
+
+syncPolicyCheckboxes(
+  groupPolicyOpenEl,
+  groupPolicyTokenEnabledEl,
+  groupPolicyRepEnabledEl,
+  groupPolicyKycEnabledEl,
+  groupPolicyAllowlistEnabledEl,
+  policyMinTokenEl,
+  minReputationEl,
+  allowlistIdsEl
+);
+syncPolicyCheckboxes(
+  adminPolicyOpen,
+  adminPolicyTokenEnabled,
+  adminPolicyRepEnabled,
+  adminPolicyKycEnabled,
+  adminPolicyAllowlistEnabled,
+  adminPolicyMinToken,
+  adminPolicyMinReputation,
+  adminPolicyAllowlist
+);
 
 navDiscover.onclick = () => { location.hash = ""; setView('viewDiscover'); };
 navFeed.onclick = () => { location.hash = ""; setView('viewFeed'); };
@@ -652,6 +1163,12 @@ feedScopeMineBtn?.addEventListener("click", async () => {
   await loadFeed();
 });
 
+feedScopeCreatedBtn?.addEventListener("click", async () => {
+  uiFilters.feedScope = "created";
+  syncFilterControlsUi();
+  await loadFeed();
+});
+
 discoverScopeAllBtn?.addEventListener("click", async () => {
   uiFilters.discoverScope = "all";
   syncFilterControlsUi();
@@ -660,6 +1177,12 @@ discoverScopeAllBtn?.addEventListener("click", async () => {
 
 discoverScopeMineBtn?.addEventListener("click", async () => {
   uiFilters.discoverScope = "mine";
+  syncFilterControlsUi();
+  await loadDiscover();
+});
+
+discoverScopeCreatedBtn?.addEventListener("click", async () => {
+  uiFilters.discoverScope = "created";
   syncFilterControlsUi();
   await loadDiscover();
 });
@@ -720,12 +1243,16 @@ async function getJoinedGroups(stateSnapshot = null) {
 async function loadDiscover() {
   try {
     const state = await api("/api/state");
+    lastKnownState = state;
     const myGroups = await getJoinedGroups(state);
     const discoverQuery = normalizeSearchValue(uiFilters.discoverQuery);
     const allGroups = Object.entries(state.groups || {});
     const visibleGroups = allGroups.filter(([id, group]) => {
       const isJoined = myGroups.includes(id);
       if (uiFilters.discoverScope === "mine" && !isJoined) {
+        return false;
+      }
+      if (uiFilters.discoverScope === "created" && String(group?.created_by_identity_id || "") !== String(lastIdentity?.id || "")) {
         return false;
       }
       if (!discoverQuery) {
@@ -745,20 +1272,35 @@ async function loadDiscover() {
     let html = `<div style="display:flex; flex-direction:column; gap: 10px;">`;
     for (const [id, group] of visibleGroups) {
       const isJoined = myGroups.includes(id);
-      const reqTokens = group.eligibility_policy?.min_token_balance || 0;
+      const archived = isGroupArchived(group);
+      const policyLabel = formatPolicyLabel(group?.eligibility_policy);
+      const showAdminGear = (uiFilters.discoverScope === "mine" || uiFilters.discoverScope === "created") && canManageGroup(group);
+      const gearButton = showAdminGear
+        ? `<button title="Community Admin Tools" onclick="openGroupAdminTools('${encodeURIComponent(id)}')" style="padding:8px 10px; border-radius:8px; border:none; background:transparent; color:var(--text); cursor:pointer; margin-bottom:8px;">⚙️</button>`
+        : "";
+      const communityVisual = group?.header_image_url
+        ? `<img src="${escapeHtml(group.header_image_url)}" alt="${escapeHtml(group?.name || id)}" style="width:58px; height:58px; border-radius:16px; object-fit:cover; border:1px solid rgba(255,255,255,0.12); flex:0 0 auto;" />`
+        : `<div style="width:58px; height:58px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:linear-gradient(145deg,#23437a,#3f7cff); border:1px solid rgba(255,255,255,0.12); color:#f8fbff; font-weight:700; font-size:1rem; flex:0 0 auto;">${escapeHtml(String(group?.name || id || "C").trim().slice(0, 2).toUpperCase())}</div>`;
 
       html += `
         <div style="background:rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h3 style="margin:0 0 5px 0; font-size: 1.1rem; cursor:pointer; text-decoration:underline;" onclick="openGroupPage('${encodeURIComponent(id)}')">#${escapeHtml(id)}</h3>
-            <small style="display:block; color:var(--muted); margin-bottom:4px;">${escapeHtml(group.description || "")}</small>
-            <span class="chip" style="font-size: 0.8rem;">Req: ${reqTokens} STRK</span>
-            <small style="color:var(--muted); margin-left: 10px;">${group.leaves.length} Members</small>
+          <div style="display:flex; align-items:center; gap:14px; min-width:0;">
+            ${communityVisual}
+            <div style="min-width:0;">
+              <h3 style="margin:0 0 5px 0; font-size: 1.1rem; cursor:pointer; text-decoration:underline;" onclick="openGroupPage('${encodeURIComponent(id)}')">#${escapeHtml(id)}</h3>
+              <small style="display:block; color:var(--muted); margin-bottom:4px;">${escapeHtml(group.description || "")}</small>
+              <span class="chip" style="font-size: 0.8rem;">${escapeHtml(policyLabel)}</span>
+              ${archived ? `<span class="chip" style="font-size:0.8rem; margin-left:8px; background:rgba(248,113,113,0.12); color:#fca5a5;">Archived</span>` : ""}
+              <small style="color:var(--muted); margin-left: 10px;">${group.leaves.length} Members</small>
+            </div>
           </div>
-          <div>
-            ${isJoined
-          ? `<button disabled style="background:#222; opacity: 0.8;">Already Joined</button>`
-          : `<button class="btn-blue" onclick="joinGroupClick('${encodeURIComponent(id)}', ${reqTokens})">Join Cryptographically</button>`}
+          <div style="display:flex; flex-direction:column; align-items:flex-end;">
+            ${gearButton}
+            ${archived
+          ? `<button disabled style="background:#222; opacity: 0.8;">Closed</button>`
+          : isJoined
+          ? `<button disabled style="background:#222; opacity: 0.8;">Member</button>`
+          : `<button class="btn-blue" onclick="joinGroupClick('${encodeURIComponent(id)}')">+ Join</button>`}
           </div>
         </div>
       `;
@@ -766,11 +1308,14 @@ async function loadDiscover() {
     html += `</div>`;
     if (visibleGroups.length === 0) {
       discoverOut.innerHTML = uiFilters.discoverScope === "mine"
-        ? "No groups matched in your memberships."
-        : "No groups matched your search.";
+        ? "No communities matched in your memberships."
+        : uiFilters.discoverScope === "created"
+          ? "No communities created by your active identity."
+          : "No communities matched your search.";
       return;
     }
     discoverOut.innerHTML = html;
+    renderLucideIcons();
   } catch (err) {
     discoverOut.innerHTML = "Error loading discover: " + err.message;
   }
@@ -779,12 +1324,18 @@ async function loadDiscover() {
 async function loadFeed() {
   try {
     const [topics, state] = await Promise.all([api("/api/topics"), api("/api/state")]);
+    lastKnownState = state;
     const myGroups = await getJoinedGroups(state);
     const feedQuery = normalizeSearchValue(uiFilters.feedQuery);
     feedOut.innerHTML = ``;
 
     const visibleTopics = (topics || [])
-      .filter((topic) => uiFilters.feedScope === "all" || myGroups.includes(topic.group_id))
+      .filter((topic) => {
+        if (uiFilters.feedScope === "all") return true;
+        if (uiFilters.feedScope === "mine") return myGroups.includes(topic.group_id);
+        if (uiFilters.feedScope === "created") return String(topic?.author_identity_id || "") === String(lastIdentity?.id || "");
+        return true;
+      })
       .filter((topic) => {
         if (!feedQuery) return true;
         const searchBlob = normalizeSearchValue([topic.group_id, topic.name, topic.type, topic.body].join(" "));
@@ -794,8 +1345,10 @@ async function loadFeed() {
 
     if (visibleTopics.length === 0) {
       feedOut.innerHTML = uiFilters.feedScope === "mine"
-        ? "<p>No topics matched in your groups.</p>"
-        : "<p>No topics matched your search.</p>";
+        ? "<p>No posts matched in your communities.</p>"
+        : uiFilters.feedScope === "created"
+          ? "<p>No posts created by your active identity.</p>"
+          : "<p>No posts matched your search.</p>";
       return;
     }
 
@@ -805,6 +1358,7 @@ async function loadFeed() {
     }
     html += `</div>`;
     feedOut.innerHTML = html;
+    renderLucideIcons();
   } catch (err) {
     feedOut.innerHTML = "Error loading feed: " + err.message;
   }
@@ -813,13 +1367,14 @@ async function loadFeed() {
 async function loadGroupPage() {
   try {
     if (!selectedGroupId) {
-      groupPageOut.innerHTML = "Group not selected.";
+      groupPageOut.innerHTML = "Community not selected.";
       return;
     }
     const [state, topics] = await Promise.all([api("/api/state"), api("/api/topics")]);
+    lastKnownState = state;
     const group = state?.groups?.[selectedGroupId];
     if (!group) {
-      groupPageOut.innerHTML = `Group not found: ${escapeHtml(selectedGroupId)}`;
+      groupPageOut.innerHTML = `Community not found: ${escapeHtml(selectedGroupId)}`;
       return;
     }
     const myGroups = await getJoinedGroups(state);
@@ -833,35 +1388,47 @@ async function loadGroupPage() {
     const headerImage = group.header_image_url
       ? `<img src="${escapeHtml(group.header_image_url)}" alt="header" style="width:100%; height:220px; object-fit:cover; border-radius:14px;">`
       : `<div style="height:220px; border-radius:14px; background:linear-gradient(145deg,#1f3f71,#2f6ba8);"></div>`;
+    const groupArchived = isGroupArchived(group);
+    const showAdminGear = canManageGroup(group);
+    const policyLabel = formatPolicyLabel(group?.eligibility_policy);
+    const tagHtml = Array.isArray(group?.tags) && group.tags.length > 0
+      ? `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">${group.tags.map((tag) => `<span class="chip" style="background:rgba(96,165,250,0.12); color:#93c5fd;">${escapeHtml(tag)}</span>`).join("")}</div>`
+      : "";
+    const rulesButton = `<button type="button" onclick="openRulesModalForGroup('${encodeURIComponent(selectedGroupId)}')" style="padding:10px 18px; border-radius:10px; border:1px solid transparent; background:var(--accent); color:#ffffff; cursor:pointer; box-shadow:none; min-width:120px;">Rules</button>`;
+    const adminGear = showAdminGear
+      ? `<button title="Community Admin Tools" onclick="openGroupAdminTools('${encodeURIComponent(selectedGroupId)}')" style="padding:8px 10px; border-radius:8px; border:none; background:transparent; color:var(--text); cursor:pointer;">⚙️</button>`
+      : "";
 
     let html = `
       <div style="display:flex; flex-direction:column; gap:14px;">
         ${headerImage}
         <div style="background:rgba(0,0,0,0.25); border:1px solid var(--line); border-radius:12px; padding:16px;">
-          <h2 style="margin:0 0 6px 0;">${escapeHtml(group.name || group.id)}</h2>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <h2 style="margin:0 0 6px 0;">${escapeHtml(group.name || group.id)}</h2>
+            ${adminGear}
+          </div>
           <p style="margin:0 0 8px 0; color:var(--muted);">${escapeHtml(group.description || "No introduction yet.")}</p>
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <span class="chip">Members: ${Number(group?.stats?.member_count ?? group?.leaves?.length ?? 0)}</span>
             <span class="chip">Topics: ${Number(group?.stats?.topic_count ?? groupTopics.length)}</span>
-            <span class="chip">Policy: ${escapeHtml(
-      !group?.eligibility_policy ? "Open" :
-        group.eligibility_policy.type === "token_min" ? `Req: ${group.eligibility_policy.min_token_balance} STRK` :
-          (group.eligibility_policy.type === "reputation_min" || group.eligibility_policy.type === "rep_min") ? `Req: ${group.eligibility_policy.min_reputation} Rep` :
-            group.eligibility_policy.type === "kyc" ? (group.eligibility_policy.require_kyc ? "KYC Required" : "Open") :
-              group.eligibility_policy.type === "allowlist" ? "Allowlist Only" : group.eligibility_policy.type
-    )}</span>
+            ${groupArchived ? `<span class="chip" style="background:rgba(248,113,113,0.12); color:#fca5a5;">Archived</span>` : ""}
+            <span class="chip">Policy: ${escapeHtml(policyLabel)}</span>
           </div>
+          ${tagHtml}
           <div style="margin-top:10px;">
-            ${isJoined
-        ? `<button disabled style="background:#222; opacity:0.85;">Already Joined</button>`
-        : `<button class="btn-blue" onclick="joinGroupClick('${encodeURIComponent(selectedGroupId)}', ${Number(group?.eligibility_policy?.min_token_balance || 0)})">Join Group</button>`}
+            ${groupArchived
+        ? `<button disabled style="padding:10px 18px; border-radius:10px; border:1px solid var(--line); background:#222; color:#d1d5db; opacity:0.85; min-width:120px;">Closed</button>`
+        : isJoined
+        ? `<button disabled style="padding:10px 18px; border-radius:10px; border:1px solid var(--line); background:#222; color:#d1d5db; opacity:0.85; min-width:120px;">Member</button>`
+        : `<button class="btn-blue" style="padding:10px 18px; min-width:120px;" onclick="joinGroupClick('${encodeURIComponent(selectedGroupId)}')">+ Join</button>`}
+            ${rulesButton}
           </div>
         </div>
       </div>
     `;
 
     if (groupTopics.length === 0) {
-      html += `<p style="color:var(--muted); margin-top:14px;">No topics in this group yet.</p>`;
+      html += `<p style="color:var(--muted); margin-top:14px;">No posts in this community yet.</p>`;
     } else {
       html += `<div style="margin-top:14px; display:flex; flex-direction:column; gap:14px;">`;
       for (const topic of groupTopics) {
@@ -871,21 +1438,23 @@ async function loadGroupPage() {
     }
 
     groupPageOut.innerHTML = html;
+    renderLucideIcons();
   } catch (err) {
-    groupPageOut.innerHTML = "Error loading group page: " + err.message;
+    groupPageOut.innerHTML = "Error loading community page: " + err.message;
   }
 }
 
 async function loadTopicPage() {
   try {
     if (!selectedGroupId || !selectedTopicId) {
-      topicPageOut.innerHTML = "Topic not selected.";
+      topicPageOut.innerHTML = "Post not selected.";
       return;
     }
     const [state, topics] = await Promise.all([api("/api/state"), api("/api/topics")]);
+    lastKnownState = state;
     const topic = (topics || []).find((t) => t.id === selectedTopicId);
     if (!topic) {
-      topicPageOut.innerHTML = `Topic not found.`;
+      topicPageOut.innerHTML = `Post not found.`;
       return;
     }
 
@@ -901,6 +1470,8 @@ async function loadTopicPage() {
     } else {
       const isPoll = topic.type === "poll";
       const activeIdentityId = String(lastIdentity?.id || "");
+      const canModerateComments = canManageGroup(getCurrentGroupRecord(topic.group_id));
+      const commentsLocked = !isTopicActive(topic) || isGroupArchived(getCurrentGroupRecord(topic.group_id));
 
       const renderSignal = (sig, isNested = false) => {
         const reactions = sig.reactions || {};
@@ -908,6 +1479,7 @@ async function loadTopicPage() {
           ? String(sig.reaction_users[activeIdentityId])
           : null;
         const isOwnComment = activeIdentityId && String(sig.identity_id || "") === activeIdentityId;
+        const canEditOrDeleteComment = !commentsLocked && (isOwnComment || canModerateComments);
         const safeMessage = encodeURIComponent(String(sig.message || ""));
         const authorLabel =
           topic.type === "poll"
@@ -921,8 +1493,8 @@ async function loadTopicPage() {
           const encodedEmoji = encodeURIComponent(String(emoji));
           return `<button onclick="submitReactionEncoded('signal', '${sig.id}', '${encodedEmoji}')" style="padding:5px 10px; margin-right:6px; border-radius:999px; border:1px solid ${isMine ? '#2563eb' : '#d1d5db'}; background:${isMine ? '#dbeafe' : '#f9fafb'}; color:#111827; cursor:pointer; font-size:0.95rem;" title="${isMine ? 'Undo reaction' : `React ${emoji}`}">${emoji} <span style="font-weight:700; margin-left:4px;">${count}</span></button>`;
         }).join('');
-        const addReactionBarHtml = `<button onclick="window.openEmojiPicker(event, 'signal', '${sig.id}')" style="padding:4px; border-radius:999px; border:1px dashed #9ca3af; background:#ffffff; cursor:pointer; color:#374151; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;" title="Add Reaction"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 10h.01"></path><path d="M16 10h.01"></path><path d="M8.8 15.2c.9 1 2 1.5 3.2 1.5s2.3-.5 3.2-1.5"></path></svg></button>`;
-        const commentActionsHtml = isOwnComment && topic.type === "poll"
+        const addReactionBarHtml = commentsLocked ? "" : `<button onclick="window.openEmojiPicker(event, 'signal', '${sig.id}')" style="padding:4px; border-radius:999px; border:1px dashed #9ca3af; background:#ffffff; cursor:pointer; color:#374151; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;" title="Add Reaction"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 10h.01"></path><path d="M16 10h.01"></path><path d="M8.8 15.2c.9 1 2 1.5 3.2 1.5s2.3-.5 3.2-1.5"></path></svg></button>`;
+        const commentActionsHtml = canEditOrDeleteComment
           ? `<div style="display:flex; gap:8px;">
                <button onclick="editCommentPrompt('${sig.id}', '${safeMessage}')" style="padding:4px 8px; font-size:0.78rem; border-radius:8px; border:1px solid #d1d5db; background:#fff; color:#374151; cursor:pointer;">Edit</button>
                <button onclick="deleteCommentConfirm('${sig.id}')" style="padding:4px 8px; font-size:0.78rem; border-radius:8px; border:1px solid #fecaca; background:#fff1f2; color:#b91c1c; cursor:pointer;">Delete</button>
@@ -931,17 +1503,17 @@ async function loadTopicPage() {
         const editedLabel = sig.edited_at ? `<span style="margin-left:6px; color:#9ca3af;">(edited)</span>` : "";
 
         let nestedRepliesHtml = "";
-        if (isPoll && !isNested) {
+        if (isPoll && !isNested && !commentsLocked) {
           const children = topicSignals.filter(s => s.parent_id === sig.id);
           nestedRepliesHtml = children.map(c => renderSignal(c, true)).join('');
 
           const safeGroup = encodeURIComponent(topic.group_id);
-          const safeName = encodeURIComponent(topic.name);
+          const safeScope = encodeURIComponent(topicScopeValue(topic));
           nestedRepliesHtml += `
             <button onclick="const box = document.getElementById('reply-box-${sig.id}'); box.style.display = box.style.display === 'none' ? 'flex' : 'none';" style="background:transparent; color:#60a5fa; border:none; cursor:pointer; font-size:0.9rem; padding:0; margin-top:10px; box-shadow:none;">Reply to this comment</button>
             <div id="reply-box-${sig.id}" style="display:none; flex-direction:column; gap:6px; margin-top:8px;">
               <textarea id="reply-input-${sig.id}" rows="2" placeholder="Write a reply..." style="background:#ffffff; color:#111827; border:1px solid #d1d5db;"></textarea>
-              <button class="btn-blue" onclick="submitSignalText(decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeName}'), '${escapeHtml(topic.id)}', 'reply-input-${sig.id}', '${sig.id}', 'poll')" style="padding:4px 8px; font-size:0.8rem; width:fit-content;">Submit Reply</button>
+              <button class="btn-blue" onclick="submitSignalText(this, decodeURIComponent('${safeGroup}'), decodeURIComponent('${safeScope}'), '${escapeHtml(topic.id)}', 'reply-input-${sig.id}', '${sig.id}', 'poll')" style="padding:4px 8px; font-size:0.8rem; width:fit-content;">Submit Reply</button>
             </div>
           `;
         }
@@ -985,8 +1557,9 @@ async function loadTopicPage() {
         </div>
       </div>
     `;
+    renderLucideIcons();
   } catch (err) {
-    topicPageOut.innerHTML = "Error loading topic page: " + err.message;
+    topicPageOut.innerHTML = "Error loading post page: " + err.message;
   }
 }
 
@@ -1078,16 +1651,281 @@ window.deleteCommentConfirm = async (signalId) => {
   }
 };
 
+function closeTopicEditModal() {
+  topicEditDraftId = null;
+  if (topicEditName) {
+    topicEditName.disabled = false;
+    topicEditName.title = "";
+  }
+  if (topicEditMetaHint) {
+    topicEditMetaHint.textContent = "";
+  }
+  topicEditModal?.classList.add("hidden");
+}
+
+window.openTopicEditModal = async (topicId) => {
+  if (!lastIdentity) {
+    alert("You need to select an Identity first.");
+    return;
+  }
+  try {
+    const topics = await api("/api/topics");
+    const topic = (topics || []).find((entry) => String(entry.id) === String(topicId));
+    if (!topic) {
+      throw new Error("TOPIC_NOT_FOUND");
+    }
+    const hasActivity = Number(topic?.poll?.total_votes || 0) > 0 || Number(topic?.stats?.signal_count || 0) > 0;
+    topicEditDraftId = String(topicId);
+    if (topicEditName) {
+      topicEditName.value = String(topic.name || "");
+      topicEditName.disabled = hasActivity;
+      topicEditName.title = hasActivity ? "Post title is locked after votes or replies exist." : "";
+    }
+    if (topicEditMetaHint) {
+      topicEditMetaHint.textContent = hasActivity
+        ? "Title is locked because this post already has votes or replies. Body, image, and link remain editable."
+        : "Post type stays fixed. Title, body, image, and link can be updated.";
+    }
+    if (topicEditBody) topicEditBody.value = String(topic.body || "");
+    if (topicEditImageUrl) topicEditImageUrl.value = String(topic.image_url || "");
+    if (topicEditLinkUrl) topicEditLinkUrl.value = String(topic.link_url || "");
+    topicEditModal?.classList.remove("hidden");
+  } catch (err) {
+    alert("Post edit failed: " + err.message);
+  }
+};
+
+async function saveTopicEditModal() {
+  if (!topicEditDraftId) {
+    throw new Error("POST_NOT_SELECTED");
+  }
+  await api("/api/topics/edit", {
+    method: "POST",
+    body: JSON.stringify({
+      topic_id: topicEditDraftId,
+      identity_id: lastIdentity?.id || null,
+      name: String(topicEditName?.value || "").trim(),
+      body: String(topicEditBody?.value || "").trim(),
+      image_url: String(topicEditImageUrl?.value || "").trim() || null,
+      link_url: String(topicEditLinkUrl?.value || "").trim() || null
+    })
+  });
+  closeTopicEditModal();
+  await loadFeed();
+  if (selectedGroupId) await loadGroupPage();
+  if (selectedTopicId) await loadTopicPage();
+}
+
+window.deleteTopicConfirm = async (topicId) => {
+  if (!lastIdentity) {
+    alert("You need to select an Identity first.");
+    return;
+  }
+  if (!window.confirm("Soft delete this topic? It will remain visible and become read-only.")) {
+    return;
+  }
+  try {
+    await api("/api/topics/delete", {
+      method: "POST",
+      body: JSON.stringify({
+        topic_id: topicId,
+        identity_id: lastIdentity.id
+      })
+    });
+    await loadFeed();
+    if (selectedGroupId) await loadGroupPage();
+    if (selectedTopicId) await loadTopicPage();
+  } catch (err) {
+    alert("Post delete failed: " + err.message);
+  }
+};
+
+window.toggleTopicArchive = async (topicId, status) => {
+  if (!lastIdentity) {
+    alert("You need to select an Identity first.");
+    return;
+  }
+  const label = status === "archived" ? "archive" : "reopen";
+  if (!window.confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} this post?`)) {
+    return;
+  }
+  try {
+    await api("/api/topics/archive", {
+      method: "POST",
+      body: JSON.stringify({
+        topic_id: topicId,
+        identity_id: lastIdentity.id,
+        status
+      })
+    });
+    await loadFeed();
+    if (selectedGroupId) await loadGroupPage();
+    if (selectedTopicId) await loadTopicPage();
+  } catch (err) {
+    alert("Post archive failed: " + err.message);
+  }
+};
+
 async function loadAdmin() {
   try {
     const state = await api("/api/state");
+    lastKnownState = state;
     adminTopicGroup.innerHTML = '';
-    for (const [id, group] of Object.entries(state.groups || {})) {
+    const groups = Object.entries(state.groups || {});
+    for (const [id, group] of groups) {
       const opt = document.createElement("option");
       opt.value = id;
       opt.textContent = group?.name ? `${group.name} (#${id})` : id;
       adminTopicGroup.appendChild(opt);
     }
+
+    const manageableGroups = groups.filter(([, group]) => canManageGroup(group));
+
+    if (groups.length === 0) {
+      selectedAdminGroupId = null;
+      if (adminGroupNameLabel) adminGroupNameLabel.textContent = "No communities available";
+      if (adminMemberDropdown) adminMemberDropdown.innerHTML = "<option value=''>No identities</option>";
+      if (adminMemberCommitmentInput) adminMemberCommitmentInput.value = "";
+      if (adminAddMemberBtn) adminAddMemberBtn.disabled = true;
+      if (adminRemoveMemberBtn) adminRemoveMemberBtn.disabled = true;
+      if (adminUpdatePolicyBtn) adminUpdatePolicyBtn.disabled = true;
+      if (adminUpdateMetadataBtn) adminUpdateMetadataBtn.disabled = true;
+      if (adminAddAdminBtn) adminAddAdminBtn.disabled = true;
+      if (adminRemoveAdminBtn) adminRemoveAdminBtn.disabled = true;
+      if (adminArchiveGroupBtn) adminArchiveGroupBtn.disabled = true;
+      if (adminReopenGroupBtn) adminReopenGroupBtn.disabled = true;
+      setAdminMemberInteraction("none");
+      return;
+    }
+
+    if (manageableGroups.length === 0) {
+      selectedAdminGroupId = null;
+      if (adminGroupNameLabel) adminGroupNameLabel.textContent = "No admin access for active identity";
+      if (adminMemberDropdown) adminMemberDropdown.innerHTML = "<option value=''>No access</option>";
+      if (adminMemberCommitmentInput) adminMemberCommitmentInput.value = "";
+      if (adminToolsOut) {
+        setOutput(adminToolsOut, "Admin access denied. Switch to a community owner/admin identity.", true);
+      }
+      if (adminAddMemberBtn) adminAddMemberBtn.disabled = true;
+      if (adminRemoveMemberBtn) adminRemoveMemberBtn.disabled = true;
+      if (adminUpdatePolicyBtn) adminUpdatePolicyBtn.disabled = true;
+      if (adminUpdateMetadataBtn) adminUpdateMetadataBtn.disabled = true;
+      if (adminAddAdminBtn) adminAddAdminBtn.disabled = true;
+      if (adminRemoveAdminBtn) adminRemoveAdminBtn.disabled = true;
+      if (adminArchiveGroupBtn) adminArchiveGroupBtn.disabled = true;
+      if (adminReopenGroupBtn) adminReopenGroupBtn.disabled = true;
+      setAdminMemberInteraction("access_denied");
+      return;
+    }
+
+    const defaultManageableGroupId = String(manageableGroups[0][0]);
+    const preferredGroupId = selectedAdminGroupId || selectedGroupId || defaultManageableGroupId;
+    const resolvedGroupId = manageableGroups.some(([gid]) => String(gid) === String(preferredGroupId))
+      ? String(preferredGroupId)
+      : defaultManageableGroupId;
+    selectedAdminGroupId = resolvedGroupId;
+
+    const group = state.groups?.[resolvedGroupId];
+    if (adminGroupNameLabel) {
+      const statusText = isGroupArchived(group) ? "archived" : "active";
+      adminGroupNameLabel.textContent = `${group?.name || resolvedGroupId} (#${resolvedGroupId}) · ${statusText}`;
+    }
+    if (adminToolsOut) {
+      adminToolsOut.textContent = "";
+    }
+
+    const identityByCommitment = new Map();
+    for (const [identityId, identity] of Object.entries(state.identities || {})) {
+      const commitment = String(identity?.commitment || "");
+      if (!commitment) continue;
+      identityByCommitment.set(commitment, identityId);
+    }
+
+    const groupLeaves = Array.isArray(group?.leaves) ? group.leaves.map((x) => String(x)) : [];
+    const groupLeafSet = new Set(groupLeaves);
+
+    if (adminMemberDropdown) {
+      const addCandidates = Object.entries(state.identities || {})
+        .map(([identityId, identity]) => ({
+          identityId: String(identityId),
+          commitment: String(identity?.commitment || ""),
+          action: "add"
+        }))
+        .filter((x) => x.commitment && !groupLeafSet.has(x.commitment));
+
+      const removeCandidates = groupLeaves.map((commitment) => ({
+        identityId: identityByCommitment.get(commitment) || "unknown",
+        commitment: String(commitment),
+        action: "remove"
+      }));
+
+      const options = [...addCandidates, ...removeCandidates];
+      if (options.length === 0) {
+        adminMemberDropdown.innerHTML = "<option value='' data-action='none'>No identity options</option>";
+      } else {
+        adminMemberDropdown.innerHTML = options
+          .map((x) => {
+            const stateLabel = x.action === "remove" ? "In group" : "Available";
+            return `<option value="${escapeHtml(x.commitment)}" data-action="${escapeHtml(x.action)}">${escapeHtml(x.identityId)} · ${escapeHtml(stateLabel)} · ${escapeHtml(shortCommitment(x.commitment))}</option>`;
+          })
+          .join("");
+        adminMemberDropdown.innerHTML = `<option value="" data-action="none">Select from identity list</option>${adminMemberDropdown.innerHTML}`;
+      }
+    }
+
+    if (adminTargetIdentityDropdown) {
+      const currentAdminSet = new Set(getGroupAdminIds(group));
+      const identityOptions = Object.keys(state.identities || {})
+        .map((identityId) => {
+          const role = currentAdminSet.has(String(identityId)) ? "Current admin" : "Available identity";
+          return `<option value="${escapeHtml(identityId)}">${escapeHtml(identityId)} · ${escapeHtml(role)}</option>`;
+        });
+      adminTargetIdentityDropdown.innerHTML = identityOptions.length > 0
+        ? `<option value="">Select from identity list</option>${identityOptions.join("")}`
+        : "<option value=''>No identity options</option>";
+    }
+
+    if (adminMemberCommitmentInput) {
+      adminMemberCommitmentInput.value = "";
+    }
+    if (adminGroupMetaName) adminGroupMetaName.value = String(group?.name || "");
+    if (adminGroupMetaDescription) adminGroupMetaDescription.value = String(group?.description || "");
+    if (adminGroupMetaHeaderImage) adminGroupMetaHeaderImage.value = String(group?.header_image_url || "");
+    if (adminGroupMetaTags) adminGroupMetaTags.value = Array.isArray(group?.tags) ? group.tags.join("\n") : "";
+    if (adminGroupMetaRules) adminGroupMetaRules.value = Array.isArray(group?.rules) ? group.rules.join("\n") : "";
+    if (adminTargetIdentityInput) adminTargetIdentityInput.value = "";
+    const normalizedPolicy = normalizeEligibilityPolicy(group?.eligibility_policy);
+    if (adminPolicyOpen) adminPolicyOpen.checked = normalizedPolicy.type === "open";
+    if (adminPolicyTokenEnabled) adminPolicyTokenEnabled.checked = normalizedPolicy.min_token_balance > 0 && normalizedPolicy.type !== "allowlist";
+    if (adminPolicyRepEnabled) adminPolicyRepEnabled.checked = normalizedPolicy.min_reputation > 0 && normalizedPolicy.type !== "allowlist";
+    if (adminPolicyKycEnabled) adminPolicyKycEnabled.checked = normalizedPolicy.require_kyc && normalizedPolicy.type !== "allowlist";
+    if (adminPolicyAllowlistEnabled) adminPolicyAllowlistEnabled.checked = normalizedPolicy.type === "allowlist";
+    if (adminPolicyMinToken) adminPolicyMinToken.value = Number(group?.eligibility_policy?.min_token_balance || 0);
+    if (adminPolicyMinReputation) adminPolicyMinReputation.value = Number(group?.eligibility_policy?.min_reputation || 0);
+    if (adminPolicyAllowlist) {
+      adminPolicyAllowlist.value = Array.isArray(group?.eligibility_policy?.allowlist_identity_ids)
+        ? group.eligibility_policy.allowlist_identity_ids.join("\n")
+        : "";
+    }
+    syncPolicyCheckboxes(
+      adminPolicyOpen,
+      adminPolicyTokenEnabled,
+      adminPolicyRepEnabled,
+      adminPolicyKycEnabled,
+      adminPolicyAllowlistEnabled,
+      adminPolicyMinToken,
+      adminPolicyMinReputation,
+      adminPolicyAllowlist
+    );
+    adminMemberUiState.fromDropdown = false;
+    setAdminMemberInteraction("ready");
+    updateAdminMemberButtonsAvailability();
+    if (adminUpdatePolicyBtn) adminUpdatePolicyBtn.disabled = false;
+    if (adminUpdateMetadataBtn) adminUpdateMetadataBtn.disabled = false;
+    if (adminAddAdminBtn) adminAddAdminBtn.disabled = false;
+    if (adminRemoveAdminBtn) adminRemoveAdminBtn.disabled = false;
+    if (adminArchiveGroupBtn) adminArchiveGroupBtn.disabled = isGroupArchived(group);
+    if (adminReopenGroupBtn) adminReopenGroupBtn.disabled = !isGroupArchived(group);
   } catch (err) {
     console.error(err);
   }
@@ -1095,7 +1933,7 @@ async function loadAdmin() {
 
 // Identity Logic
 const LOCAL_VAULT_KEY = "vs_identities";
-const LOCAL_VAULT_CLEAR_ONCE_KEY = "vs_local_vault_cleared_20260307";
+const LOCAL_VAULT_CLEAR_ONCE_KEY = "vs_local_vault_cleared_20260307_reset5";
 if (!localStorage.getItem(LOCAL_VAULT_CLEAR_ONCE_KEY)) {
   localStorage.removeItem(LOCAL_VAULT_KEY);
   localStorage.setItem(LOCAL_VAULT_CLEAR_ONCE_KEY, "1");
@@ -1471,32 +2309,48 @@ recoverIdentity.addEventListener("click", async () => {
 buttons.createGroup.addEventListener("click", async () => {
   setBusy(buttons.createGroup, true);
   try {
+    if (!hasAnyPolicySelected(groupPolicyOpenEl, groupPolicyTokenEnabledEl, groupPolicyRepEnabledEl, groupPolicyKycEnabledEl, groupPolicyAllowlistEnabledEl)) {
+      throw new Error("Select at least one policy.");
+    }
     const id = groupIdEl.value.trim();
     const name = groupNameEl.value.trim() || id;
     const description = groupDescriptionEl.value.trim();
+    const tags = parseIdentityListInput(String(groupTagsEl?.value || ""));
+    const rules = parseIdentityListInput(String(groupRulesEl?.value || ""));
     let header_image_url = groupHeaderImageUrlEl.value.trim() || null;
     const base64File = await readFileAsBase64(groupHeaderImageFileEl.files?.[0]);
     if (base64File) {
       header_image_url = base64File;
     }
-    const depth = Number(document.getElementById("groupDepth").value || 20);
-    const polType = document.getElementById("policyType").value;
-    const kycRequired = groupKycRequiredEl.value === "true";
-
-    let eligibility_policy = { type: polType };
-    if (polType === "token_min") {
-      eligibility_policy.min_token_balance = Number(policyMinTokenEl.value || 0);
-    } else if (polType === "reputation_min" || polType === "rep_min") {
-      eligibility_policy.min_reputation = Number(document.getElementById("minReputation").value || 0);
-    } else if (polType === "kyc") {
-      eligibility_policy.require_kyc = kycRequired;
-    } else if (polType === "allowlist") {
-      eligibility_policy.allowlist_identity_ids = document.getElementById("allowlistIds").value.split(",").map(s => s.trim()).filter(Boolean);
+    const depth = clampDepthValue(document.getElementById("groupDepth").value);
+    let eligibility_policy = { type: "open", open: true };
+    if (groupPolicyAllowlistEnabledEl?.checked) {
+      eligibility_policy = {
+        type: "allowlist",
+        allowlist_identity_ids: parseIdentityListInput(String(allowlistIdsEl?.value || ""))
+      };
+    } else if (!groupPolicyOpenEl?.checked) {
+      eligibility_policy = {
+        type: "composite",
+        min_token_balance: groupPolicyTokenEnabledEl?.checked ? Number(policyMinTokenEl.value || 0) : 0,
+        min_reputation: groupPolicyRepEnabledEl?.checked ? Number(minReputationEl?.value || 0) : 0,
+        require_kyc: Boolean(groupPolicyKycEnabledEl?.checked)
+      };
     }
 
-    const body = { group_id: id, name, description, header_image_url, depth, eligibility_policy };
+    const body = {
+      group_id: id,
+      name,
+      description,
+      header_image_url,
+      tags,
+      rules,
+      depth,
+      eligibility_policy,
+      created_by_identity_id: lastIdentity?.id || null
+    };
     await api("/api/groups/create", { method: "POST", body: JSON.stringify(body) });
-    setOutput(groupOut, `Group ${id} Created!`, false);
+    setOutput(groupOut, `Community ${id} created.`, false);
     groupHeaderImageFileEl.value = "";
     loadAdmin();
   } catch (e) {
@@ -1526,7 +2380,7 @@ buttons.createTopic.addEventListener("click", async () => {
     body.image_url = image_url;
 
     await api("/api/topics", { method: "POST", body: JSON.stringify(body) });
-    setOutput(topicOut, `Topic "${body.name}" created globally!`, false);
+    setOutput(topicOut, `Post "${body.name}" created.`, false);
     adminTopicBody.value = "";
     adminTopicImageUrl.value = "";
     adminTopicImageFileEl.value = "";
@@ -1538,16 +2392,318 @@ buttons.createTopic.addEventListener("click", async () => {
   }
 });
 
+function buildAdminPolicyPayload() {
+  if (adminPolicyOpen?.checked) {
+    return { type: "open", open: true };
+  }
+  if (adminPolicyAllowlistEnabled?.checked) {
+    return {
+      type: "allowlist",
+      allowlist_identity_ids: parseIdentityListInput(String(adminPolicyAllowlist?.value || ""))
+    };
+  }
+  return {
+    type: "composite",
+    min_token_balance: adminPolicyTokenEnabled?.checked ? Number(adminPolicyMinToken?.value || 0) : 0,
+    min_reputation: adminPolicyRepEnabled?.checked ? Number(adminPolicyMinReputation?.value || 0) : 0,
+    require_kyc: Boolean(adminPolicyKycEnabled?.checked)
+  };
+}
+
+function renderAdminActionResult(action, responsePayload) {
+  const relay = responsePayload?.relay || null;
+  const txHash = relay?.tx_hash ? String(relay.tx_hash) : "n/a";
+  const relayStatus = relay?.status ? String(relay.status) : "n/a";
+  const root = responsePayload?.root ? String(responsePayload.root) : "-";
+  const leavesCount = Array.isArray(responsePayload?.leaves) ? responsePayload.leaves.length : 0;
+  setOutput(
+    adminToolsOut,
+    `${action} succeeded\nrelay_status=${relayStatus}\ntx_hash=${txHash}\nroot=${root}\nmembers=${leavesCount}`,
+    false
+  );
+}
+
+function renderStatefulActionResult(action, responsePayload) {
+  const status = responsePayload?.status ? String(responsePayload.status) : "-";
+  setOutput(adminToolsOut, `${action} succeeded\nstatus=${status}`, false);
+}
+
+adminUpdateMetadataBtn?.addEventListener("click", async () => {
+  setBusy(adminUpdateMetadataBtn, true);
+  try {
+    const groupId = String(selectedAdminGroupId || "").trim();
+    if (!groupId) throw new Error("Community is required.");
+    const response = await api("/api/groups/update-metadata", {
+      method: "POST",
+      body: JSON.stringify({
+        group_id: groupId,
+        admin_identity_id: lastIdentity?.id || null,
+        name: String(adminGroupMetaName?.value || "").trim(),
+        description: String(adminGroupMetaDescription?.value || "").trim(),
+        header_image_url: String(adminGroupMetaHeaderImage?.value || "").trim() || null,
+        tags: parseIdentityListInput(String(adminGroupMetaTags?.value || "")),
+        rules: parseIdentityListInput(String(adminGroupMetaRules?.value || ""))
+      })
+    });
+    renderStatefulActionResult("Update metadata", response);
+    await loadAdmin();
+    if (selectedGroupId === groupId) await loadGroupPage();
+    if (selectedTopicId) await loadTopicPage();
+    await loadDiscover();
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Metadata update failed", true);
+  } finally {
+    setBusy(adminUpdateMetadataBtn, false);
+  }
+});
+
+async function submitAdminListAction(action) {
+  const groupId = String(selectedAdminGroupId || "").trim();
+  const targetIdentityId = String(adminTargetIdentityInput?.value || "").trim();
+  if (!groupId || !targetIdentityId) {
+    throw new Error("Community and target identity are required.");
+  }
+  const response = await api("/api/groups/manage-admins", {
+    method: "POST",
+    body: JSON.stringify({
+      group_id: groupId,
+      admin_identity_id: lastIdentity?.id || null,
+      target_identity_id: targetIdentityId,
+      action
+    })
+  });
+  setOutput(
+    adminToolsOut,
+    `${action === "add" ? "Add admin" : "Remove admin"} succeeded\nadmins=${(response?.admins || []).join(", ") || "-"}`,
+    false
+  );
+  await loadAdmin();
+  await loadDiscover();
+  if (selectedGroupId === groupId) await loadGroupPage();
+}
+
+adminAddAdminBtn?.addEventListener("click", async () => {
+  setBusy(adminAddAdminBtn, true);
+  try {
+    await submitAdminListAction("add");
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Add admin failed", true);
+  } finally {
+    setBusy(adminAddAdminBtn, false);
+  }
+});
+
+adminRemoveAdminBtn?.addEventListener("click", async () => {
+  setBusy(adminRemoveAdminBtn, true);
+  try {
+    await submitAdminListAction("remove");
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Remove admin failed", true);
+  } finally {
+    setBusy(adminRemoveAdminBtn, false);
+  }
+});
+
+async function submitGroupStatus(status) {
+  const groupId = String(selectedAdminGroupId || "").trim();
+  if (!groupId) throw new Error("Community is required.");
+  const response = await api("/api/groups/archive", {
+    method: "POST",
+    body: JSON.stringify({
+      group_id: groupId,
+      admin_identity_id: lastIdentity?.id || null,
+      status
+    })
+  });
+  renderStatefulActionResult(status === "archived" ? "Archive community" : "Reopen community", response);
+  await loadAdmin();
+  await loadDiscover();
+  if (selectedGroupId === groupId) await loadGroupPage();
+  if (selectedTopicId) await loadTopicPage();
+}
+
+adminArchiveGroupBtn?.addEventListener("click", async () => {
+  setBusy(adminArchiveGroupBtn, true);
+  try {
+    await submitGroupStatus("archived");
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Archive community failed", true);
+  } finally {
+    setBusy(adminArchiveGroupBtn, false);
+  }
+});
+
+adminReopenGroupBtn?.addEventListener("click", async () => {
+  setBusy(adminReopenGroupBtn, true);
+  try {
+    await submitGroupStatus("active");
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Reopen community failed", true);
+  } finally {
+    setBusy(adminReopenGroupBtn, false);
+  }
+});
+
+adminMemberCommitmentInput?.addEventListener("focus", () => {
+  adminMemberUiState.fromDropdown = false;
+  setAdminMemberInteraction("input_focus");
+});
+
+adminMemberCommitmentInput?.addEventListener("input", () => {
+  adminMemberUiState.fromDropdown = false;
+  setAdminMemberInteraction("input_edit");
+  updateAdminMemberButtonsAvailability();
+});
+
+adminMemberDropdownToggle?.addEventListener("click", () => {
+  if (!adminMemberDropdown) return;
+  const nextDisplay = adminMemberDropdown.style.display === "none" ? "block" : "none";
+  adminMemberDropdown.style.display = nextDisplay;
+  setAdminMemberInteraction("dropdown_toggle");
+});
+
+adminMemberDropdown?.addEventListener("change", () => {
+  const selectedOption = adminMemberDropdown.selectedOptions?.[0];
+  const commitment = String(selectedOption?.value || "").trim();
+  const action = String(selectedOption?.dataset?.action || "").trim() || null;
+  if (adminMemberCommitmentInput) {
+    adminMemberCommitmentInput.value = commitment;
+  }
+  adminMemberUiState.fromDropdown = true;
+  setAdminMemberInteraction("dropdown_select", action);
+  updateAdminMemberButtonsAvailability();
+  adminMemberDropdown.style.display = "none";
+});
+
+adminTargetIdentityToggle?.addEventListener("click", () => {
+  if (!adminTargetIdentityDropdown) return;
+  const nextDisplay = adminTargetIdentityDropdown.style.display === "none" ? "block" : "none";
+  adminTargetIdentityDropdown.style.display = nextDisplay;
+});
+
+adminTargetIdentityDropdown?.addEventListener("change", () => {
+  const selectedOption = adminTargetIdentityDropdown.selectedOptions?.[0];
+  const identityId = String(selectedOption?.value || "").trim();
+  if (adminTargetIdentityInput) {
+    adminTargetIdentityInput.value = identityId;
+  }
+  adminTargetIdentityDropdown.style.display = "none";
+});
+
+adminAddMemberBtn?.addEventListener("click", async () => {
+  setBusy(adminAddMemberBtn, true);
+  try {
+    const groupId = String(selectedAdminGroupId || "").trim();
+    const identityCommitment = String(adminMemberCommitmentInput?.value || "").trim();
+    if (!groupId || !identityCommitment) {
+      throw new Error("Community and identity commitment are required.");
+    }
+    if (adminMemberUiState.fromDropdown && adminMemberUiState.suggestedAction === "remove") {
+      throw new Error("Selected dropdown member is tagged for REMOVE. Edit input or choose an ADD entry.");
+    }
+    const body = {
+      group_id: groupId,
+      identity_commitment: identityCommitment,
+      admin_identity_id: lastIdentity?.id || null
+    };
+    if (!body.admin_identity_id) {
+      throw new Error("Active identity required.");
+    }
+    const response = await api("/api/admin/add-member", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    setAdminMemberInteraction("action_add", adminMemberUiState.suggestedAction);
+    renderAdminActionResult("Add member", response);
+    await loadAdmin();
+    await loadDiscover();
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Add member failed", true);
+  } finally {
+    setBusy(adminAddMemberBtn, false);
+  }
+});
+
+adminRemoveMemberBtn?.addEventListener("click", async () => {
+  setBusy(adminRemoveMemberBtn, true);
+  try {
+    const groupId = String(selectedAdminGroupId || "").trim();
+    const identityCommitment = String(adminMemberCommitmentInput?.value || "").trim();
+    if (!groupId || !identityCommitment) {
+      throw new Error("Community and identity commitment are required.");
+    }
+    if (adminMemberUiState.fromDropdown && adminMemberUiState.suggestedAction === "add") {
+      throw new Error("Selected dropdown member is tagged for ADD. Edit input or choose a REMOVE entry.");
+    }
+    const body = {
+      group_id: groupId,
+      identity_commitment: identityCommitment,
+      admin_identity_id: lastIdentity?.id || null
+    };
+    if (!body.admin_identity_id) {
+      throw new Error("Active identity required.");
+    }
+    const response = await api("/api/admin/remove-member", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    setAdminMemberInteraction("action_remove", adminMemberUiState.suggestedAction);
+    renderAdminActionResult("Remove member", response);
+    await loadAdmin();
+    await loadDiscover();
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Remove member failed", true);
+  } finally {
+    setBusy(adminRemoveMemberBtn, false);
+  }
+});
+
+adminUpdatePolicyBtn?.addEventListener("click", async () => {
+  setBusy(adminUpdatePolicyBtn, true);
+  try {
+    const groupId = String(selectedAdminGroupId || "").trim();
+    if (!groupId) {
+      throw new Error("Community is required.");
+    }
+    if (!hasAnyPolicySelected(adminPolicyOpen, adminPolicyTokenEnabled, adminPolicyRepEnabled, adminPolicyKycEnabled, adminPolicyAllowlistEnabled)) {
+      throw new Error("Select at least one policy.");
+    }
+    const body = {
+      group_id: groupId,
+      eligibility_policy: buildAdminPolicyPayload(),
+      admin_identity_id: lastIdentity?.id || null
+    };
+    if (!body.admin_identity_id) {
+      throw new Error("Active identity required.");
+    }
+    const response = await api("/api/admin/update-policy", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    renderAdminActionResult("Update policy", response);
+    await loadAdmin();
+    await loadDiscover();
+  } catch (error) {
+    setOutput(adminToolsOut, error.message || "Policy update failed", true);
+  } finally {
+    setBusy(adminUpdatePolicyBtn, false);
+  }
+});
+
 // User Actions
-window.joinGroupClick = async (groupId, reqTokens) => {
+window.joinGroupClick = async (groupId) => {
   groupId = decodeURIComponent(String(groupId));
   if (!lastIdentity) return alert("Create an identity first!");
   if (!walletConnected()) return alert("Connect a Starknet Wallet first!");
 
   try {
+    const state = lastKnownState || await api("/api/state");
+    const group = state?.groups?.[groupId] || null;
+    const normalizedPolicy = normalizeEligibilityPolicy(group?.eligibility_policy);
     const balance = await getStrkBalance(walletState.address);
-    if (balance < reqTokens) {
-      alert(`Insufficient balance! You need ${reqTokens} STRK, but have ${balance.toFixed(2)}.`);
+    const requiredTokens = Number(normalizedPolicy?.min_token_balance || 0);
+    if (requiredTokens > 0 && balance < requiredTokens) {
+      alert(`Insufficient balance! You need ${requiredTokens} STRK, but have ${balance.toFixed(2)}.`);
       return;
     }
 
@@ -1585,7 +2741,7 @@ window.joinGroupClick = async (groupId, reqTokens) => {
   }
 };
 
-window.submitPollVote = async (groupId, topicName, topicId, vote) => {
+window.submitPollVote = async (groupId, topicScope, topicId, vote) => {
   if (!lastIdentity || !window.lastPassphrase) {
     alert("Requires active identity in session.");
     return;
@@ -1597,7 +2753,7 @@ window.submitPollVote = async (groupId, topicName, topicId, vote) => {
   }
   try {
     setFlowStatus("Generating Zero Knowledge vote proof...");
-    const scope = `${groupId}:${topicName}`;
+    const scope = String(topicScope || `${groupId}:${topicId}`);
     const rawProofPayload = await api("/api/proofs/generate", {
       method: "POST",
       body: JSON.stringify({
@@ -1643,8 +2799,12 @@ window.submitPollVote = async (groupId, topicName, topicId, vote) => {
   }
 };
 
-window.submitSignalText = async (groupId, topicName, topicId, textareaId, parentId = null, topicType = "open") => {
-  const message = document.getElementById(textareaId).value;
+window.submitSignalText = async (triggerEl, groupId, topicScope, topicId, textareaId, parentId = null, topicType = "open") => {
+  let textarea = findBestReplyTextarea(textareaId, topicId);
+  if (!textarea && triggerEl?.closest) {
+    textarea = triggerEl.closest("div")?.querySelector("textarea") || null;
+  }
+  const message = String(textarea?.value ?? "").trim();
   if (!message) return alert("Message cannot be empty");
 
   if (topicType === "poll") {
@@ -1667,6 +2827,7 @@ window.submitSignalText = async (groupId, topicName, topicId, textareaId, parent
       });
       alert(`Success! Comment posted as Identity ${lastIdentity.id.substring(0, 8)}...`);
       setFlowStatus("Comment Published.");
+      if (textarea) textarea.value = "";
       if (selectedTopicId) loadTopicPage();
     } catch (e) {
       alert("Comment failed: " + e.message);
@@ -1674,11 +2835,12 @@ window.submitSignalText = async (groupId, topicName, topicId, textareaId, parent
     }
   } else {
     // Advanced Web3 ZK Proof fully anonymous route
-    await window.submitSignal(groupId, topicName, message, parentId, topicType, topicId);
+    await window.submitSignal(groupId, topicScope, message, parentId, topicType, topicId);
+    if (textarea) textarea.value = "";
   }
 }
 
-window.submitSignal = async (groupId, topicName, message, parentId = null, topicType = "open", topicId = null) => {
+window.submitSignal = async (groupId, topicScope, message, parentId = null, topicType = "open", topicId = null) => {
   if (!lastIdentity || !window.lastPassphrase) {
     alert("Requires active identity in session.");
     return;
@@ -1687,7 +2849,7 @@ window.submitSignal = async (groupId, topicName, message, parentId = null, topic
 
   try {
     setFlowStatus("Generating Zero Knowledge Proof in background...");
-    const scope = `${groupId}:${topicName}`;
+    const scope = String(topicScope || `${groupId}:${topicId}`);
 
     // Forge Proof via Server (simulating background browser threading for prototype)
     const rawProofPayload = await api("/api/proofs/generate", {
@@ -1767,6 +2929,7 @@ updateWalletUi();
 setActiveIdentityControls();
 syncIdentityOverviewSelect();
 syncFilterControlsUi();
+renderLucideIcons();
 
 applyRouteFromHash();
 if (location.hash.startsWith("#/group/")) {

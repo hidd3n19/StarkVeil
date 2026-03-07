@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <script type="module" src="https://unpkg.com/emoji-picker-element@1"></script>
   <script src="https://cdn.jsdelivr.net/npm/starknet@6.23.1/dist/index.global.js"></script>
+  <script src="/vendor/lucide.min.js"></script>
   <script>
     // Stash the full starknet library immediately so wallet extensions
     // don't overwrite the 'starknet' namespace and strip our Contract classes
@@ -16,6 +17,12 @@
 </head>
 
 <body>
+  <div id="floatingHistoryNav" style="position:fixed; top:28px; left:340px; z-index:1200; display:flex; gap:10px;">
+    <button id="floatingBackBtn" type="button"
+      style="width:52px; height:52px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,0.78); color:var(--text); cursor:pointer; font-size:1.3rem;">←</button>
+    <button id="floatingForwardBtn" type="button"
+      style="width:52px; height:52px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,0.78); color:var(--text); cursor:pointer; font-size:1.3rem;">→</button>
+  </div>
   <!-- Landing Overlay for Unconnected Users -->
   <div id="landingOverlay">
     <div class="brand-wrap" style="margin-bottom: 20px;">
@@ -53,22 +60,22 @@
 
       <nav class="nav-menu">
         <button id="navFeed" class="nav-item active" type="button">
-          <span>Feed</span>
+          <span style="display:inline-flex; align-items:center; gap:10px;"><i data-lucide="rss" class="nav-lucide"></i><span>Feed</span></span>
         </button>
         <button id="navDiscover" class="nav-item" type="button">
-          <span>Explorer</span>
+          <span style="display:inline-flex; align-items:center; gap:10px;"><i data-lucide="earth" class="nav-lucide"></i><span>Explorer</span></span>
         </button>
 
         <hr style="border: 0; border-top: 1px solid var(--line); margin: 15px 0;" />
 
         <button id="navCreateGroup" class="nav-item" type="button">
-          <span>Create Group</span>
+          <span style="display:inline-flex; align-items:center; gap:10px;"><i data-lucide="square-plus" class="nav-lucide"></i><span>Community</span></span>
         </button>
         <button id="navCreateTopic" class="nav-item" type="button">
-          <span>Create Topic</span>
+          <span style="display:inline-flex; align-items:center; gap:10px;"><i data-lucide="square-plus" class="nav-lucide"></i><span>Post</span></span>
         </button>
         <button id="navIdentity" class="nav-item" type="button">
-          <span>Create Identity</span>
+          <span style="display:inline-flex; align-items:center; gap:10px;"><i data-lucide="square-plus" class="nav-lucide"></i><span>Identity</span></span>
         </button>
       </nav>
 
@@ -87,7 +94,7 @@
             <span class="stat-value" id="profBalance">-</span>
           </div>
           <div class="stat-row">
-            <span>Active Groups</span>
+            <span>Active communities</span>
             <span class="stat-value" id="profGroupsJoined">-</span>
           </div>
         </div>
@@ -102,37 +109,42 @@
       <!-- View: Feed -->
       <section id="viewFeed" class="mode-view">
         <h2 style="margin-top:0; font-size: 2rem;">Feed</h2>
-        <p style="color:var(--muted); margin-bottom: 30px;">Active topics from communities you have joined.</p>
+        <p style="color:var(--muted); margin-bottom: 30px;">Active Posts from communities you have joined.</p>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 15px;">
           <div style="display:flex; gap:8px;">
             <button id="feedScopeAll"
-              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All
-              Topics</button>
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All</button>
             <button id="feedScopeMine"
-              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Your
-              Topics</button>
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">For you</button>
+            <button id="feedScopeCreated"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Created</button>
           </div>
-          <input id="feedSearchInput" placeholder="Search topics..."
+          <input id="feedSearchInput" placeholder="Search Posts..."
             style="flex:1; min-width:220px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
         </div>
-        <div id="feedOut">Loading topics...</div>
+        <div id="feedOut">Loading posts...</div>
       </section>
 
       <!-- View: Discover -->
       <section id="viewDiscover" class="mode-view hidden">
+        <div class="explorer-banner">
+          <video autoplay muted loop playsinline preload="metadata">
+            <source src="/explorer-banner.mp4" type="video/mp4" />
+          </video>
+          <div class="explorer-banner-overlay"></div>
+        </div>
         <h2 style="margin-top:0; font-size: 2rem;">Explorer</h2>
-        <p style="color:var(--muted); margin-bottom: 30px;">Join exclusive Token-Gated groups using your Starknet
-          balance.</p>
+        <p style="color:var(--muted); margin-bottom: 30px;">Join exclusive Token-Gated communities</p>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 15px;">
           <div style="display:flex; gap:8px;">
             <button id="discoverScopeAll"
-              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All
-              Groups</button>
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">All</button>
             <button id="discoverScopeMine"
-              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Your
-              Groups</button>
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">For you</button>
+            <button id="discoverScopeCreated"
+              style="padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Created</button>
           </div>
-          <input id="discoverSearchInput" placeholder="Search groups..."
+          <input id="discoverSearchInput" placeholder="Search Communities..."
             style="flex:1; min-width:220px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
         </div>
         <div id="discoverOut">Loading communities...</div>
@@ -140,103 +152,124 @@
 
       <!-- View: Group -->
       <section id="viewGroup" class="mode-view hidden">
-        <button id="backToDiscover"
-          style="margin-bottom:12px; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; min-width:44px;">←</button>
-        <div id="groupPageOut">Loading group...</div>
+        <div id="groupPageOut">Loading community...</div>
       </section>
 
       <!-- View: Topic -->
       <section id="viewTopic" class="mode-view hidden">
-        <button id="backToGroup"
-          style="margin-bottom:12px; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; min-width:44px;">←</button>
-        <div id="topicPageOut">Loading topic...</div>
+        <div id="topicPageOut">Loading post...</div>
       </section>
 
       <!-- View: Create Group -->
       <section id="viewCreateGroup" class="mode-view hidden">
         <h2 style="margin-top:0; font-size: 2rem;">Create Community</h2>
-        <p style="color:var(--muted); margin-bottom: 30px;">Deploy a new Token-Gated group to the Semaphore protocol.
+        <p style="color:var(--muted); margin-bottom: 30px;">Deploy a new Token-Gated community to the Semaphore protocol.
         </p>
 
         <article class="panel" style="padding: 20px; margin-bottom: 20px;">
-          <label style="display:block; margin-bottom: 10px;">Group ID (Slug) <input id="groupId"
+          <label style="display:block; margin-bottom: 10px;">Community ID (Slug) <input id="groupId"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              value="starknet-devs" /></label>
-          <label style="display:block; margin-bottom: 10px;">Group Name <input id="groupName"
+              placeholder="e.g. starknet-devs" /></label>
+          <label style="display:block; margin-bottom: 10px;">Community Name <input id="groupName"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              value="Starknet Devs" /></label>
+              placeholder="e.g. Starknet Devs" /></label>
           <label style="display:block; margin-bottom: 10px;">Intro / Description
             <textarea id="groupDescription" rows="2"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              placeholder="Welcome to the community..."></textarea>
+              placeholder="Write a short introduction for this community..."></textarea>
           </label>
           <label style="display:block; margin-bottom: 10px;">Header Image (URL or Upload)
             <input id="groupHeaderImageUrl"
               style="width:100%; padding:10px; margin-top:5px; margin-bottom: 5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              placeholder="https://..." />
+              placeholder="Paste a banner image URL..." />
             <input type="file" id="groupHeaderImageFile" accept="image/*" style="display:block; font-size: 0.85rem;" />
           </label>
 
-          <label style="display:block; margin-bottom: 10px;">Depth (1-32) <input id="groupDepth" type="number"
-              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              value="20" /></label>
-
-          <label style="display:block; margin-bottom: 10px;">Policy Type
-            <select id="policyType"
-              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
-              <option value="open">Open (No requirement)</option>
-              <option value="token_min">Minimum Token Balance</option>
-              <option value="reputation_min">Minimum Reputation</option>
-              <option value="kyc">KYC Verified</option>
-              <option value="allowlist">Strict Allowlist</option>
-            </select>
+          <label style="display:block; margin-bottom: 10px;">Tags (comma or newline separated)
+            <textarea id="groupTags" rows="2"
+              style="width:100%; padding:10px; margin-top:5px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="#starknet&#10;#devs"></textarea>
+          </label>
+          <label style="display:block; margin-bottom: 15px;">Rules (comma or newline separated)
+            <textarea id="groupRules" rows="3"
+              style="width:100%; padding:10px; margin-top:5px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="Be respectful&#10;No spam"></textarea>
           </label>
 
-          <label style="display:block; margin-bottom: 10px;">KYC Verified Required
-            <select id="groupKycRequired"
-              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
-          </label>
-
-          <label style="display:block; margin-bottom: 10px;">Allowlist IDs (comma separated string)
-            <textarea id="allowlistIds" rows="2"
-              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px; font-family:monospace;"></textarea>
-          </label>
-
-          <label style="display:block; margin-bottom: 10px;">Min Reputation <input id="minReputation" type="number"
+          <label style="display:block; margin-bottom: 10px;">Depth (1-32) <input id="groupDepth" type="text" inputmode="numeric" pattern="[0-9]*"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              value="10" /></label>
+              placeholder="e.g. 20" /></label>
 
-          <label style="display:block; margin-bottom: 15px;">Required STRK Balance <input id="policyMinToken"
-              type="number"
-              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
-              value="10" /></label>
-
+          <div style="margin-bottom: 14px;">
+            <div style="margin-bottom: 6px; font-size:1.15rem; font-weight:700;">Policy Type</div>
+            <div style="margin-bottom: 12px; color:var(--muted); font-size:0.86rem;">Open and Allowlist are exclusive. Click a checked box to uncheck it, then select one or more of the other policies.</div>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center; margin-bottom:10px;">
+              <input id="groupPolicyOpen" type="checkbox" checked style="width:20px; height:20px;" />
+              <div>
+                <div style="margin-bottom:4px;">Open</div>
+                <input placeholder="Open (No restrictions)" disabled
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:var(--muted); border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="groupPolicyTokenEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Required STRK Balance</div>
+                <input id="policyMinToken" type="number"
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+                  placeholder="Enter minimum STRK balance" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="groupPolicyRepEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Min Reputation</div>
+                <input id="minReputation" type="number"
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+                  placeholder="Enter minimum reputation" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center; margin-bottom:10px;">
+              <input id="groupPolicyKycEnabled" type="checkbox" style="width:20px; height:20px;" />
+              <div>
+                <div style="margin-bottom:4px;">Require KYC</div>
+                <input placeholder="Verified identities only" disabled
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:var(--muted); border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="groupPolicyAllowlistEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Allowlist IDs (comma or newline separated)</div>
+                <textarea id="allowlistIds" rows="2"
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px; font-family:monospace;"
+                  placeholder="identity_a&#10;identity_b"></textarea>
+              </div>
+            </label>
+          </div>
           <button id="createGroup"
             class="btn-blue"
             style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Deploy
-            Group</button>
+            Community</button>
           <div id="groupOut" style="margin-top:10px; color:var(--good);"></div>
         </article>
       </section>
 
       <!-- View: Create Topic -->
       <section id="viewCreateTopic" class="mode-view hidden">
-        <h2 style="margin-top:0; font-size: 2rem;">Post a Topic (Scope)</h2>
-        <p style="color:var(--muted); margin-bottom: 30px;">Create a new discussion or vote in an existing community.
+        <h2 style="margin-top:0; font-size: 2rem;">Create Post</h2>
+        <p style="color:var(--muted); margin-bottom: 30px;">Create a new post in an existing community.
         </p>
 
         <article class="panel" style="padding: 20px; margin-bottom: 20px;">
-          <label style="display:block; margin-bottom: 10px;">Select Group
+          <label style="display:block; margin-bottom: 10px;">Select Community
             <select id="adminTopicGroup"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></select>
           </label>
-          <label style="display:block; margin-bottom: 10px;">Topic Title <input id="adminTopicName"
+          <label style="display:block; margin-bottom: 10px;">Post Title <input id="adminTopicName"
               placeholder="e.g. Best Wallet 2026?"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" /></label>
-          <label style="display:block; margin-bottom: 15px;">Topic Type
+          <label style="display:block; margin-bottom: 15px;">Post Type
             <select id="adminTopicType"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;">
               <option value="poll">Poll (Yes/No)</option>
@@ -244,7 +277,7 @@
             </select>
           </label>
           <label style="display:block; margin-bottom: 10px;">Body (optional)
-            <textarea id="adminTopicBody" rows="3" placeholder="Add context for your topic..."
+            <textarea id="adminTopicBody" rows="3" placeholder="Add context for your post..."
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></textarea>
           </label>
           <label style="display:block; margin-bottom: 10px;">Image (URL or Upload)
@@ -258,7 +291,7 @@
           <button id="createTopic"
             class="btn-blue"
             style="padding: 10px 20px; border-radius:8px; background: var(--accent); color:white; border:none; cursor:pointer;">Publish
-            Topic</button>
+            Post</button>
           <div id="topicOut" style="margin-top:10px; color:var(--good);"></div>
         </article>
       </section>
@@ -301,7 +334,7 @@
             for your active identity.</p>
 
           <label style="display:block; margin-bottom: 10px;">Reputation
-            <input id="identityReputationInput" type="number" min="0" step="1" value="0"
+            <input id="identityReputationInput" type="number" min="0" step="1" placeholder="Enter reputation score"
               style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
           </label>
 
@@ -371,6 +404,134 @@
         </article>
       </section>
 
+      <!-- View: Admin Tools -->
+      <section id="viewAdminTools" class="mode-view hidden">
+        <h2 style="margin-top:0; font-size: 2rem;">Admin Tools</h2>
+        <p style="color:var(--muted); margin-bottom: 24px;">Run member, metadata, admin, and policy actions for this community.</p>
+        <article class="panel" style="padding: 20px; margin-bottom: 20px;">
+          <div id="adminGroupHeader"
+            style="margin-bottom: 14px; padding:10px; border:1px solid var(--line); border-radius:8px; background:rgba(0,0,0,0.22); color:var(--muted);">
+            Community: <strong id="adminGroupNameLabel" style="color:var(--text);">-</strong>
+          </div>
+
+          <h3 style="margin:14px 0 8px 0;">Community Metadata</h3>
+          <label style="display:block; margin-bottom: 10px;">Community Name
+            <input id="adminGroupMetaName" placeholder="Update community name"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Description
+            <textarea id="adminGroupMetaDescription" rows="3"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="Update community description"></textarea>
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Header Image URL
+            <input id="adminGroupMetaHeaderImage" placeholder="Paste a banner image URL"
+              style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+          </label>
+          <label style="display:block; margin-bottom: 10px;">Tags (comma or newline separated)
+            <textarea id="adminGroupMetaTags" rows="2"
+              style="width:100%; padding:10px; margin-top:5px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="#starknet&#10;#devs"></textarea>
+          </label>
+          <label style="display:block; margin-bottom: 16px;">Rules (comma or newline separated)
+            <textarea id="adminGroupMetaRules" rows="3"
+              style="width:100%; padding:10px; margin-top:5px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+              placeholder="Be respectful&#10;No spam"></textarea>
+          </label>
+          <button id="adminUpdateMetadataBtn" class="btn-blue" style="padding:10px 16px; margin-bottom:16px;">Update Metadata</button>
+
+          <h3 style="margin:14px 0 8px 0;">Add / Remove Member</h3>
+          <label style="display:block; margin-bottom: 10px;">Identity Commitment
+            <div style="display:grid; grid-template-columns: 1fr auto; gap:8px; margin-top:5px;">
+              <input id="adminMemberCommitmentInput" placeholder="Paste commitment or pick from dropdown..."
+                style="width:100%; padding:10px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+              <button id="adminMemberDropdownToggle" type="button" title="Open member dropdown"
+                style="min-width:42px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">v</button>
+            </div>
+            <select id="adminMemberDropdown"
+              style="display:none; width:100%; padding:10px; margin-top:8px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></select>
+          </label>
+          <div id="adminMemberLastAction" style="margin-bottom:10px; color:var(--muted); font-size:0.85rem;">
+            Last interaction: none
+          </div>
+          <div style="display:flex; gap:10px; margin-bottom:16px;">
+            <button id="adminAddMemberBtn" class="btn-blue" style="padding:10px 16px;">Add Member</button>
+            <button id="adminRemoveMemberBtn" style="padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Remove Member</button>
+          </div>
+
+          <h3 style="margin:14px 0 8px 0;">Update Policy</h3>
+          <div style="margin-bottom: 14px;">
+            <div style="margin-bottom: 6px; font-size:1.15rem; font-weight:700;">Policy Type</div>
+            <div style="margin-bottom: 12px; color:var(--muted); font-size:0.86rem;">Open and Allowlist are exclusive. Click a checked box to uncheck it, then select one or more of the other policies.</div>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center; margin-bottom:10px;">
+              <input id="adminPolicyOpen" type="checkbox" checked style="width:20px; height:20px;" />
+              <div>
+                <div style="margin-bottom:4px;">Open</div>
+                <input placeholder="Open (No restrictions)" disabled
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:var(--muted); border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="adminPolicyTokenEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Min Token Balance</div>
+                <input id="adminPolicyMinToken" type="number" placeholder="Enter minimum STRK balance"
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="adminPolicyRepEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Min Reputation</div>
+                <input id="adminPolicyMinReputation" type="number" placeholder="Enter minimum reputation"
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center; margin-bottom:10px;">
+              <input id="adminPolicyKycEnabled" type="checkbox" style="width:20px; height:20px;" />
+              <div>
+                <div style="margin-bottom:4px;">Require KYC</div>
+                <input id="adminPolicyRequireKyc" placeholder="Verified identities only" disabled
+                  style="width:100%; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:var(--muted); border-radius:8px;" />
+              </div>
+            </label>
+            <label style="display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-bottom:10px;">
+              <input id="adminPolicyAllowlistEnabled" type="checkbox" style="width:20px; height:20px; margin-top:12px;" />
+              <div>
+                <div style="margin-bottom:4px;">Allowlist Identity IDs (comma or newline separated)</div>
+                <textarea id="adminPolicyAllowlist" rows="2"
+                  style="width:100%; padding:10px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+                  placeholder="identity_a&#10;identity_b"></textarea>
+              </div>
+            </label>
+          </div>
+          <button id="adminUpdatePolicyBtn" class="btn-blue" style="padding:10px 16px;">Update Policy</button>
+
+          <h3 style="margin:18px 0 8px 0;">Manage Admins</h3>
+          <label style="display:block; margin-bottom: 10px;">Target Identity ID
+            <div style="display:grid; grid-template-columns: 1fr auto; gap:8px; margin-top:5px;">
+              <input id="adminTargetIdentityInput" placeholder="identity id"
+                style="width:100%; padding:10px; font-family:monospace; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+              <button id="adminTargetIdentityToggle" type="button" title="Open identity dropdown"
+                style="min-width:42px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">v</button>
+            </div>
+            <select id="adminTargetIdentityDropdown"
+              style="display:none; width:100%; padding:10px; margin-top:8px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"></select>
+          </label>
+          <div style="display:flex; gap:10px; margin-bottom:16px;">
+            <button id="adminAddAdminBtn" class="btn-blue" style="padding:10px 16px;">Add Admin</button>
+            <button id="adminRemoveAdminBtn" style="padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Remove Admin</button>
+          </div>
+
+          <h3 style="margin:18px 0 8px 0;">Community Status</h3>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="adminArchiveGroupBtn" style="padding:10px 16px; border-radius:8px; border:1px solid #f59e0b; background:rgba(245,158,11,0.08); color:#fcd34d; cursor:pointer;">Archive Community</button>
+            <button id="adminReopenGroupBtn" style="padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Reopen Community</button>
+          </div>
+          <div id="adminToolsOut" style="margin-top:12px; color:var(--good); white-space:pre-wrap; word-break:break-word;"></div>
+        </article>
+      </section>
+
     </section>
 
     <!-- RIGHT RAIL: Context / Telemetry / Identity -->
@@ -426,6 +587,54 @@
       </div>
     </aside>
   </main>
+
+  <div id="topicEditModal" class="hidden"
+    style="position:fixed; inset:0; z-index:1600; background:rgba(3,7,18,0.74); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px;">
+    <div
+      style="width:min(720px, 100%); background:#050816; border:1px solid var(--line); border-radius:20px; padding:24px; box-shadow:0 30px 80px rgba(0,0,0,0.45);">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px;">
+        <h3 style="margin:0; font-size:1.4rem;">Edit Post</h3>
+        <button id="topicEditCloseBtn" type="button"
+          style="min-width:42px; height:42px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">×</button>
+      </div>
+      <label style="display:block; margin-bottom: 10px;">Post Title
+        <input id="topicEditName" placeholder="Update post title"
+          style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+      </label>
+      <div id="topicEditMetaHint" style="margin:-2px 0 12px 0; color:var(--muted); font-size:0.88rem;"></div>
+      <label style="display:block; margin-bottom: 10px;">Body
+        <textarea id="topicEditBody" rows="5"
+          style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;"
+          placeholder="Update post body"></textarea>
+      </label>
+      <label style="display:block; margin-bottom: 10px;">Image URL
+        <input id="topicEditImageUrl" placeholder="Paste an image URL"
+          style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+      </label>
+      <label style="display:block; margin-bottom: 16px;">Link URL
+        <input id="topicEditLinkUrl" placeholder="Paste a destination URL"
+          style="width:100%; padding:10px; margin-top:5px; background:rgba(0,0,0,0.3); border:1px solid var(--line); color:white; border-radius:8px;" />
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="topicEditCancelBtn" type="button"
+          style="padding:10px 16px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">Cancel</button>
+        <button id="topicEditSaveBtn" type="button" class="btn-blue" style="padding:10px 18px;">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="groupRulesModal" class="hidden"
+    style="position:fixed; inset:0; z-index:1550; background:rgba(3,7,18,0.74); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px;">
+    <div
+      style="width:min(620px, 100%); background:#050816; border:1px solid var(--line); border-radius:20px; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px;">
+        <h3 id="groupRulesModalTitle" style="margin:0; font-size:1.3rem;">Community Rules</h3>
+        <button id="groupRulesModalCloseBtn" type="button"
+          style="min-width:42px; height:42px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;">×</button>
+      </div>
+      <div id="groupRulesModalBody" style="display:flex; flex-direction:column; gap:10px; color:var(--text);"></div>
+    </div>
+  </div>
 
   <div id="walletModal" class="wallet-modal hidden" aria-hidden="true"
     style="background: rgba(0,0,0,0.8); backdrop-filter:blur(5px);">

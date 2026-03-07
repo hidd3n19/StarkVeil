@@ -6,10 +6,13 @@
   "scripts": {
     "start": "node server.mjs",
     "smoke:phase0": "node scripts/smoke_phase0.mjs",
-    "test:phase2": "node scripts/test_contract_adapters.mjs"
+    "test:phase2": "node scripts/test_contract_adapters.mjs",
+    "test:phase3": "node scripts/test_phase3_shadow.mjs",
+    "test:phase45": "node scripts/test_phase45_cutover.mjs"
   },
   "dependencies": {
     "circomlibjs": "^0.1.7",
+    "lucide": "^0.577.0",
     "prompt-sync": "^4.2.0",
     "snarkjs": "^0.7.3",
     "starknet": "^9.2.1"

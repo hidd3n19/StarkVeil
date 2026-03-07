@@ -7,12 +7,24 @@ import {
   timingSafeEqual
 } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { relayGroupCreate, relayGroupJoin } from "./contract/groups.mjs";
+import {
+  relayGroupCreate,
+  relayGroupJoin,
+  relayGroupRemove,
+  relayPolicyUpdate
+} from "./contract/groups.mjs";
+import { generateDriftReport } from "./contract/drift_monitor.mjs";
 import { buildRelayEvent } from "./contract/events.mjs";
+import {
+  extractAuthorityState,
+  mergeStateWithReadModel,
+  projectReadModelFromState,
+  writeReadModel
+} from "./contract/indexer.mjs";
 import { relayPollVote, relaySignalSubmit } from "./contract/proofs.mjs";
 import { createRelayClient } from "./contract/relay_client.mjs";
 import { generateRealProof, verifyRealProof } from "./real_zk_helper.mjs";
@@ -23,6 +35,12 @@ const PUBLIC_DIR = normalize(join(ROOT_DIR, "semaphore-frontend", "public"));
 const DATA_FILE = normalize(join(ROOT_DIR, "semaphore-frontend", "data", "history.json"));
 const RELAY_STORE_FILE = normalize(
   join(ROOT_DIR, "semaphore-frontend", "data", "relay_idempotency.json")
+);
+const INDEXER_READ_MODEL_FILE = normalize(
+  join(ROOT_DIR, "semaphore-frontend", "data", "indexer_read_model.latest.json")
+);
+const DRIFT_REPORT_FILE = normalize(
+  join(ROOT_DIR, "semaphore-frontend", "data", "drift_report.latest.json")
 );
 const ENV_FILE = normalize(join(ROOT_DIR, "semaphore-frontend", ".env"));
 
@@ -90,13 +108,14 @@ const PROVER_VERSION = "local-prover-v1";
 const VK_ID = "local-vk-v1";
 const VK_HASH = toBigIntHex(hashHex(VK_ID));
 const PROVER_SECRET = hashHex("semaphore-local-prover-secret-v1");
-const CURRENT_STATE_VERSION = 4;
+const CURRENT_STATE_VERSION = 5;
 const MODE = String(process.env.MODE || "offchain").trim().toLowerCase();
 const ONCHAIN_WRITE_ENABLED =
   String(process.env.ONCHAIN_WRITE_ENABLED || "false").toLowerCase() === "true";
 const ONCHAIN_READ_PREFERRED =
   String(process.env.ONCHAIN_READ_PREFERRED || "false").toLowerCase() === "true";
 const RELAY_MODE = String(process.env.CONTRACT_RELAY_MODE || "mock").trim().toLowerCase();
+const INDEXER_POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_INTERVAL_MS || 2000);
 
 if (!["offchain", "hybrid", "onchain"].includes(MODE)) {
   throw new Error("INVALID_MODE_FLAG");
@@ -120,6 +139,14 @@ function structuredLog(event, payload = {}) {
       ...payload
     })
   );
+}
+
+function shouldUseIndexerReads() {
+  return ONCHAIN_READ_PREFERRED && MODE !== "offchain";
+}
+
+function chainAuthorityEnabled() {
+  return ONCHAIN_WRITE_ENABLED && ONCHAIN_READ_PREFERRED && MODE !== "offchain";
 }
 
 function hashHex(input) {
@@ -251,10 +278,15 @@ function normalizeGroupRecord(groupId, group) {
     tags: Array.isArray(group?.tags) ? group.tags.map((x) => String(x)) : [],
     rules: Array.isArray(group?.rules) ? group.rules.map((x) => String(x)) : [],
     admins: Array.isArray(group?.admins) ? group.admins.map((x) => String(x)) : [],
+    created_by_identity_id: group?.created_by_identity_id
+      ? String(group.created_by_identity_id)
+      : null,
     depth,
     leaves,
     root,
     roots_history: rootsHistory,
+    status: String(group?.status ?? "active"),
+    archived_at: group?.archived_at ? ensureIso(group.archived_at, now) : null,
     eligibility_policy: validateEligibilityPolicy(group?.eligibility_policy),
     stats: {
       member_count: leaves.length,
@@ -299,6 +331,9 @@ function normalizeTopicRecord(topic, index = 0) {
     image_url: topic?.image_url ? String(topic.image_url) : null,
     link_url: topic?.link_url ? String(topic.link_url) : null,
     status: String(topic?.status ?? "active"),
+    archived_at: topic?.archived_at ? ensureIso(topic.archived_at, now) : null,
+    deleted_at: topic?.deleted_at ? ensureIso(topic.deleted_at, now) : null,
+    deleted_by_identity_id: topic?.deleted_by_identity_id ? String(topic.deleted_by_identity_id) : null,
     poll: type === "poll"
       ? { options: ["YES", "NO"], counts: pollCounts, total_votes: totalVotes }
       : null,
@@ -536,10 +571,82 @@ async function readState() {
   }
 }
 
-async function writeState(state) {
+let stateWriteQueue = Promise.resolve();
+
+function enqueueStateWrite(task) {
+  const run = stateWriteQueue.then(task, task);
+  stateWriteQueue = run.catch(() => { });
+  return run;
+}
+
+async function writeState(state, options = {}) {
+  const preserveExistingEvents = options.preserveExistingEvents !== false;
   const normalized = normalizeState(state);
-  normalized.meta.updated_at = nowIso();
-  await writeFile(DATA_FILE, JSON.stringify(normalized, null, 2) + "\n", "utf8");
+
+  await enqueueStateWrite(async () => {
+    if (preserveExistingEvents) {
+      try {
+        const raw = await readFile(DATA_FILE, "utf8");
+        const diskState = normalizeState(JSON.parse(raw));
+        const seenEventIds = new Set((normalized.events || []).map((event) => String(event?.id || "")));
+        for (const event of diskState.events || []) {
+          const eventId = String(event?.id || "");
+          if (!eventId || seenEventIds.has(eventId)) {
+            continue;
+          }
+          normalized.events.push(event);
+          seenEventIds.add(eventId);
+        }
+        normalized.events.sort((a, b) => Date.parse(String(a?.at || 0)) - Date.parse(String(b?.at || 0)));
+        if (normalized.events.length > 700) {
+          normalized.events = normalized.events.slice(normalized.events.length - 700);
+        }
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
+
+    normalized.meta.updated_at = nowIso();
+    const tmp = `${DATA_FILE}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+    await writeFile(tmp, JSON.stringify(normalized, null, 2) + "\n", "utf8");
+    await rename(tmp, DATA_FILE);
+    if (shouldUseIndexerReads()) {
+      await refreshIndexerReadModel(normalized);
+    }
+  });
+}
+
+async function writeDriftReport(report) {
+  const tmp = `${DRIFT_REPORT_FILE}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  await writeFile(tmp, JSON.stringify(report, null, 2) + "\n", "utf8");
+  await rename(tmp, DRIFT_REPORT_FILE);
+}
+
+async function refreshIndexerReadModel(state) {
+  const model = projectReadModelFromState(state);
+  await writeReadModel(INDEXER_READ_MODEL_FILE, model);
+  return model;
+}
+
+async function getReadModel() {
+  if (!shouldUseIndexerReads()) {
+    return null;
+  }
+  const state = await readState();
+  const projected = projectReadModelFromState(state);
+  await writeReadModel(INDEXER_READ_MODEL_FILE, projected);
+  return projected;
+}
+
+async function getAuthorityState() {
+  const model = (await getReadModel()) || emptyAuthorityReadModel();
+  return extractAuthorityState(model);
+}
+
+function emptyAuthorityReadModel() {
+  return { nullifiers: {}, group_roots: {} };
 }
 
 function addEvent(state, type, data) {
@@ -549,35 +656,50 @@ function addEvent(state, type, data) {
   }
 }
 
-async function attemptOnchainRelay(state, action, relayFn, payload) {
-  try {
-    const relayResult = await relayFn(relayClient, payload);
-    if (relayResult?.status && relayResult.status !== "SKIPPED_FLAG_OFF") {
-      const relayEvent = buildRelayEvent(action, relayResult, payload);
-      state.events.push({
-        id: hashHex(action + nowIso() + Math.random()),
-        type: relayEvent.type,
-        at: relayEvent.at,
-        data: relayEvent.data
-      });
-      if (state.events.length > 700) {
-        state.events = state.events.slice(state.events.length - 700);
-      }
-    }
-    structuredLog("onchain_relay", {
-      action,
-      status: relayResult?.status || "UNKNOWN",
-      attempts: Number(relayResult?.attempts || 0),
-      replayed: Boolean(relayResult?.replayed),
-      tx_hash: relayResult?.tx_hash || null,
-      idempotency_key: relayResult?.idempotency_key || null
-    });
-  } catch (error) {
-    structuredLog("onchain_relay_error", {
-      action,
-      error: String(error?.message || "UNKNOWN_RELAY_ERROR")
-    });
+async function executeOnchainRelay(action, relayFn, payload, stateForPersistence = null) {
+  const relayResult = await relayFn(relayClient, payload);
+  structuredLog("onchain_relay", {
+    action,
+    status: relayResult?.status || "UNKNOWN",
+    attempts: Number(relayResult?.attempts || 0),
+    replayed: Boolean(relayResult?.replayed),
+    tx_hash: relayResult?.tx_hash || null,
+    idempotency_key: relayResult?.idempotency_key || null
+  });
+
+  if (!relayResult?.status || relayResult.status === "SKIPPED_FLAG_OFF") {
+    return relayResult;
   }
+
+  const state = stateForPersistence || (await readState());
+  const relayEvent = buildRelayEvent(action, relayResult, payload);
+  addEvent(state, relayEvent.type, relayEvent.data);
+  const drift = generateDriftReport(state);
+  if (!stateForPersistence) {
+    await writeState(state);
+    await writeDriftReport(drift);
+    await refreshIndexerReadModel(state);
+  }
+  return relayResult;
+}
+
+function scheduleOnchainRelay(action, relayFn, payload) {
+  structuredLog("onchain_relay_queued", {
+    action,
+    group_id: payload?.group_id ? String(payload.group_id) : null,
+    topic_id: payload?.topic_id ? String(payload.topic_id) : null
+  });
+
+  setTimeout(async () => {
+    try {
+      await executeOnchainRelay(action, relayFn, payload);
+    } catch (error) {
+      structuredLog("onchain_relay_error", {
+        action,
+        error: String(error?.message || "UNKNOWN_RELAY_ERROR")
+      });
+    }
+  }, 0);
 }
 
 function computeMerkleRoot(depth, leaves) {
@@ -659,6 +781,53 @@ function ensureIdentity(state, identityId) {
   return identity;
 }
 
+function getGroupAdminIds(group) {
+  const adminSet = new Set(
+    (Array.isArray(group?.admins) ? group.admins : [])
+      .map((x) => String(x))
+      .filter(Boolean)
+  );
+  const creatorId = String(group?.created_by_identity_id || "");
+  if (creatorId) {
+    adminSet.add(creatorId);
+  }
+  return [...adminSet];
+}
+
+function isGroupAdminIdentity(group, identityId) {
+  if (!identityId) return false;
+  return getGroupAdminIds(group).includes(String(identityId));
+}
+
+function isGroupMemberIdentity(group, identity) {
+  const commitment = String(identity?.commitment || "");
+  return Boolean(commitment && Array.isArray(group?.leaves) && group.leaves.includes(commitment));
+}
+
+function isGroupArchived(group) {
+  return String(group?.status || "active") === "archived";
+}
+
+function isTopicArchived(topic) {
+  return String(topic?.status || "active") === "archived";
+}
+
+function isTopicDeleted(topic) {
+  return String(topic?.status || "active") === "deleted";
+}
+
+function isTopicActive(topic) {
+  return !isTopicArchived(topic) && !isTopicDeleted(topic);
+}
+
+function ensureTopic(state, topicId) {
+  const topic = (state.topics || []).find((entry) => String(entry?.id) === String(topicId));
+  if (!topic) {
+    throw new Error("TOPIC_NOT_FOUND");
+  }
+  return topic;
+}
+
 function sanitizeIdentity(identity) {
   return {
     id: identity.id,
@@ -670,7 +839,14 @@ function sanitizeIdentity(identity) {
 }
 
 function defaultEligibilityPolicy() {
-  return { type: "open" };
+  return {
+    type: "open",
+    open: true,
+    min_token_balance: 0,
+    min_reputation: 0,
+    require_kyc: false,
+    allowlist_identity_ids: []
+  };
 }
 
 function validateEligibilityPolicy(policy) {
@@ -679,40 +855,45 @@ function validateEligibilityPolicy(policy) {
   }
   const rawType = String(policy.type || "open");
   const type = rawType === "rep_min" ? "reputation_min" : rawType;
+  const allowlist = Array.isArray(policy.allowlist_identity_ids)
+    ? policy.allowlist_identity_ids
+    : Array.isArray(policy.allowlist_ids)
+      ? policy.allowlist_ids
+      : [];
+  const minToken = Number(policy.min_token_balance ?? 0);
+  const minRep = Number(policy.min_reputation ?? 0);
+  const requireKyc = Boolean(policy.require_kyc);
 
+  if (type === "allowlist" || allowlist.length > 0) {
+    return {
+      type: "allowlist",
+      open: false,
+      min_token_balance: 0,
+      min_reputation: 0,
+      require_kyc: false,
+      allowlist_identity_ids: allowlist.map((x) => String(x)).filter(Boolean)
+    };
+  }
+  if (type === "token_min" || type === "reputation_min" || type === "kyc" || type === "composite" || minToken > 0 || minRep > 0 || requireKyc) {
+    return {
+      type: "composite",
+      open: false,
+      min_token_balance: minToken,
+      min_reputation: minRep,
+      require_kyc: requireKyc,
+      allowlist_identity_ids: []
+    };
+  }
   if (type === "open") {
-    return { type: "open" };
-  }
-  if (type === "allowlist") {
-    const allowlist = Array.isArray(policy.allowlist_identity_ids)
-      ? policy.allowlist_identity_ids
-      : Array.isArray(policy.allowlist_ids)
-        ? policy.allowlist_ids
-        : [];
-    return {
-      type,
-      allowlist_identity_ids: allowlist.map((x) => String(x))
-    };
-  }
-  if (type === "kyc") {
-    return {
-      type,
-      require_kyc: policy.require_kyc === undefined ? true : Boolean(policy.require_kyc)
-    };
-  }
-  if (type === "reputation_min") {
-    return { type, min_reputation: Number(policy.min_reputation ?? 0) };
-  }
-  if (type === "token_min") {
-    return { type, min_token_balance: Number(policy.min_token_balance ?? 0) };
+    return defaultEligibilityPolicy();
   }
   throw new Error("INVALID_ELIGIBILITY_POLICY");
 }
 
 function evaluateEligibility(group, identity) {
-  const policy = group.eligibility_policy || defaultEligibilityPolicy();
+  const policy = validateEligibilityPolicy(group.eligibility_policy || defaultEligibilityPolicy());
 
-  if (policy.type === "open") {
+  if (policy.type === "open" || policy.open === true) {
     return { eligible: true, reason: "OPEN_GROUP" };
   }
 
@@ -721,24 +902,21 @@ function evaluateEligibility(group, identity) {
     return { eligible: allowed, reason: allowed ? "ALLOWLIST_MATCH" : "NOT_IN_ALLOWLIST" };
   }
 
-  if (policy.type === "kyc") {
-    if (policy.require_kyc === false) {
-      return { eligible: true, reason: "KYC_NOT_REQUIRED" };
+  if (policy.type === "composite") {
+    const failures = [];
+    if (Number(policy.min_token_balance || 0) > 0 && Number(identity.attrs?.token_balance || 0) < Number(policy.min_token_balance || 0)) {
+      failures.push("TOKEN_BALANCE_TOO_LOW");
     }
-    const eligible = Boolean(identity.attrs?.kyc_verified);
-    return { eligible, reason: eligible ? "KYC_VERIFIED" : "KYC_REQUIRED" };
-  }
-
-  if (policy.type === "reputation_min") {
-    const min = Number(policy.min_reputation || 0);
-    const rep = Number(identity.attrs?.reputation || 0);
-    return { eligible: rep >= min, reason: rep >= min ? "REPUTATION_OK" : "REPUTATION_TOO_LOW" };
-  }
-
-  if (policy.type === "token_min") {
-    const min = Number(policy.min_token_balance || 0);
-    const bal = Number(identity.attrs?.token_balance || 0);
-    return { eligible: bal >= min, reason: bal >= min ? "TOKEN_BALANCE_OK" : "TOKEN_BALANCE_TOO_LOW" };
+    if (Number(policy.min_reputation || 0) > 0 && Number(identity.attrs?.reputation || 0) < Number(policy.min_reputation || 0)) {
+      failures.push("REPUTATION_TOO_LOW");
+    }
+    if (policy.require_kyc && !Boolean(identity.attrs?.kyc_verified)) {
+      failures.push("KYC_REQUIRED");
+    }
+    return {
+      eligible: failures.length === 0,
+      reason: failures.length === 0 ? "COMPOSITE_POLICY_OK" : failures[0]
+    };
   }
 
   return { eligible: false, reason: "UNKNOWN_POLICY" };
@@ -855,7 +1033,13 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === "GET" && url.pathname === "/api/state") {
       const state = await readState();
-      json(res, 200, state);
+      if (shouldUseIndexerReads()) {
+        const model = await getReadModel();
+        const merged = mergeStateWithReadModel(state, model || {});
+        json(res, 200, merged);
+      } else {
+        json(res, 200, state);
+      }
       return;
     }
 
@@ -1038,7 +1222,8 @@ const server = createServer(async (req, res) => {
         avatar_url,
         tags,
         rules,
-        admins
+        admins,
+        created_by_identity_id
       } = await parseBody(req);
       if (!group_id) {
         json(res, 400, { error: "GROUP_ID_REQUIRED" });
@@ -1056,6 +1241,13 @@ const server = createServer(async (req, res) => {
         return;
       }
 
+      const creatorIdentityId = created_by_identity_id ? String(created_by_identity_id) : null;
+      const resolvedAdmins = Array.isArray(admins)
+        ? admins.map((x) => String(x))
+        : creatorIdentityId
+          ? [creatorIdentityId]
+          : [];
+
       const group = {
         id: String(group_id),
         name: String(name ?? group_id),
@@ -1064,11 +1256,14 @@ const server = createServer(async (req, res) => {
         avatar_url: avatar_url ? String(avatar_url) : null,
         tags: Array.isArray(tags) ? tags.map((x) => String(x)) : [],
         rules: Array.isArray(rules) ? rules.map((x) => String(x)) : [],
-        admins: Array.isArray(admins) ? admins.map((x) => String(x)) : [],
+        admins: resolvedAdmins,
+        created_by_identity_id: creatorIdentityId,
         depth: parsedDepth,
         leaves: [],
         root: computeMerkleRoot(CIRCUIT_DEPTH, []),
         roots_history: [],
+        status: "active",
+        archived_at: null,
         eligibility_policy: validateEligibilityPolicy(eligibility_policy),
         stats: {
           member_count: 0,
@@ -1091,12 +1286,23 @@ const server = createServer(async (req, res) => {
         root: String(group.root),
         policy_type: String(group.eligibility_policy?.type || "open")
       });
-      await attemptOnchainRelay(state, "GROUP_CREATE", relayGroupCreate, {
+      const createRelayPayload = {
         group_id: String(group_id),
         depth: parsedDepth,
-        admin: String(Array.isArray(admins) && admins.length > 0 ? admins[0] : "0x0")
-      });
+        admin: String(resolvedAdmins.length > 0 ? resolvedAdmins[0] : "0x0"),
+        expected_root: String(group.root)
+      };
+      if (chainAuthorityEnabled()) {
+        const relayResult = await executeOnchainRelay("GROUP_CREATE", relayGroupCreate, createRelayPayload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
       await writeState(state);
+      if (!chainAuthorityEnabled()) {
+        scheduleOnchainRelay("GROUP_CREATE", relayGroupCreate, createRelayPayload);
+      }
 
       json(res, 201, group);
       return;
@@ -1117,6 +1323,11 @@ const server = createServer(async (req, res) => {
       const state = await readState();
       const group = ensureGroup(state, group_id);
       const identity = ensureIdentity(state, identity_id);
+
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
 
       const decision = evaluateEligibility(group, identity);
       if (!decision.eligible) {
@@ -1152,12 +1363,159 @@ const server = createServer(async (req, res) => {
         commitment: String(identity.commitment),
         new_root: String(group.root)
       });
-      await attemptOnchainRelay(state, "GROUP_JOIN", relayGroupJoin, {
+      const joinRelayPayload = {
         group_id: String(group_id),
-        identity_commitment: String(identity.commitment)
+        identity_commitment: String(identity.commitment),
+        expected_root: String(group.root)
+      };
+      if (chainAuthorityEnabled()) {
+        const relayResult = await executeOnchainRelay("GROUP_JOIN", relayGroupJoin, joinRelayPayload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
+      await writeState(state);
+      if (!chainAuthorityEnabled()) {
+        scheduleOnchainRelay("GROUP_JOIN", relayGroupJoin, joinRelayPayload);
+      }
+
+      json(res, 200, group);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/groups/update-metadata") {
+      const {
+        group_id,
+        admin_identity_id,
+        name,
+        description,
+        header_image_url,
+        tags,
+        rules
+      } = await parseBody(req);
+      if (!group_id || !admin_identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+
+      if (name !== undefined) group.name = String(name || "").trim() || group.id;
+      if (description !== undefined) group.description = String(description || "").trim();
+      if (header_image_url !== undefined) {
+        group.header_image_url = String(header_image_url || "").trim() || null;
+      }
+      if (tags !== undefined) {
+        group.tags = Array.isArray(tags)
+          ? tags.map((x) => String(x).trim()).filter(Boolean)
+          : [];
+      }
+      if (rules !== undefined) {
+        group.rules = Array.isArray(rules)
+          ? rules.map((x) => String(x).trim()).filter(Boolean)
+          : [];
+      }
+      group.updated_at = nowIso();
+
+      addEvent(state, "GROUP_METADATA_UPDATED", {
+        group_id: String(group_id),
+        admin_identity_id: String(admin_identity_id)
       });
       await writeState(state);
+      json(res, 200, group);
+      return;
+    }
 
+    if (req.method === "POST" && url.pathname === "/api/groups/manage-admins") {
+      const { group_id, admin_identity_id, target_identity_id, action } = await parseBody(req);
+      if (!group_id || !admin_identity_id || !target_identity_id || !action) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const normalizedAction = String(action).trim().toLowerCase();
+      if (!["add", "remove"].includes(normalizedAction)) {
+        json(res, 400, { error: "INVALID_ADMIN_ACTION" });
+        return;
+      }
+
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      ensureIdentity(state, target_identity_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+
+      const targetId = String(target_identity_id);
+      const creatorId = String(group.created_by_identity_id || "");
+      const currentAdmins = new Set(getGroupAdminIds(group));
+
+      if (normalizedAction === "add") {
+        if (currentAdmins.has(targetId)) {
+          json(res, 409, { error: "ALREADY_GROUP_ADMIN" });
+          return;
+        }
+        group.admins = Array.from(new Set([...(group.admins || []).map(String), targetId]));
+      } else {
+        if (targetId && creatorId && targetId === creatorId) {
+          json(res, 403, { error: "CREATOR_ADMIN_IMMUTABLE" });
+          return;
+        }
+        if (!currentAdmins.has(targetId)) {
+          json(res, 404, { error: "ADMIN_NOT_FOUND" });
+          return;
+        }
+        group.admins = (group.admins || []).map(String).filter((id) => id !== targetId);
+      }
+
+      group.updated_at = nowIso();
+      addEvent(state, "GROUP_ADMINS_UPDATED", {
+        group_id: String(group_id),
+        admin_identity_id: String(admin_identity_id),
+        target_identity_id: targetId,
+        action: normalizedAction
+      });
+      await writeState(state);
+      json(res, 200, {
+        group_id: String(group_id),
+        admins: getGroupAdminIds(group)
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/groups/archive") {
+      const { group_id, admin_identity_id, status } = await parseBody(req);
+      if (!group_id || !admin_identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const nextStatus = String(status || "archived").trim().toLowerCase();
+      if (!["active", "archived"].includes(nextStatus)) {
+        json(res, 400, { error: "INVALID_GROUP_STATUS" });
+        return;
+      }
+
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+
+      group.status = nextStatus;
+      group.archived_at = nextStatus === "archived" ? nowIso() : null;
+      group.updated_at = nowIso();
+      addEvent(state, "GROUP_STATUS_UPDATED", {
+        group_id: String(group_id),
+        admin_identity_id: String(admin_identity_id),
+        status: nextStatus
+      });
+      await writeState(state);
       json(res, 200, group);
       return;
     }
@@ -1169,16 +1527,30 @@ const server = createServer(async (req, res) => {
         return;
       }
       const state = await readState();
-      // Verify group exists
-      ensureGroup(state, group_id);
+      const group = ensureGroup(state, group_id);
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (!author_identity_id) {
+        json(res, 400, { error: "AUTHOR_IDENTITY_REQUIRED" });
+        return;
+      }
+      const authorIdentity = ensureIdentity(state, author_identity_id);
+      const canCreateTopic = isGroupMemberIdentity(group, authorIdentity) || isGroupAdminIdentity(group, author_identity_id);
+      if (!canCreateTopic) {
+        json(res, 403, { error: "TOPIC_CREATE_FORBIDDEN" });
+        return;
+      }
 
+      const topicId = hashHex(group_id + name + nowIso()).slice(0, 16);
       const topic = {
-        id: hashHex(group_id + name + nowIso()).slice(0, 16),
+        id: topicId,
         group_id: String(group_id),
         author_identity_id: author_identity_id ? String(author_identity_id) : null,
         name: String(name),
         body: body ? String(body) : null,
-        scope: `${group_id}:${name}`,
+        scope: `${group_id}:${topicId}`,
         type: String(type), // "poll" or "open"
         image_url: image_url ? String(image_url) : null,
         link_url: link_url ? String(link_url) : null,
@@ -1203,9 +1575,137 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/api/topics") {
+    if (req.method === "POST" && url.pathname === "/api/topics/edit") {
+      const { topic_id, identity_id, name, body, image_url, link_url } = await parseBody(req);
+      if (!topic_id || !identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
       const state = await readState();
-      const enrichedTopics = (state.topics || []).map(topic => {
+      const topic = ensureTopic(state, topic_id);
+      const group = ensureGroup(state, topic.group_id);
+
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (String(topic.author_identity_id || "") !== String(identity_id)) {
+        json(res, 403, { error: "NOT_TOPIC_OWNER" });
+        return;
+      }
+      if (!isTopicActive(topic)) {
+        json(res, 403, { error: isTopicDeleted(topic) ? "TOPIC_DELETED" : "TOPIC_LOCKED" });
+        return;
+      }
+
+      const requestedName = name === undefined ? topic.name : String(name || "").trim();
+      const topicSignals = (state.signals || []).filter((signal) => String(signal.topic_id || "") === String(topic.id));
+      const hasActivity = topicSignals.length > 0 || Number(topic?.poll?.total_votes || 0) > 0;
+      if (requestedName && requestedName !== String(topic.name) && hasActivity) {
+        json(res, 409, { error: "TOPIC_TITLE_LOCKED" });
+        return;
+      }
+
+      if (requestedName) {
+        topic.name = requestedName;
+      }
+      if (body !== undefined) topic.body = String(body || "").trim() || null;
+      if (image_url !== undefined) topic.image_url = String(image_url || "").trim() || null;
+      if (link_url !== undefined) topic.link_url = String(link_url || "").trim() || null;
+      topic.updated_at = nowIso();
+
+      addEvent(state, "TOPIC_UPDATED", {
+        topic_id: String(topic.id),
+        identity_id: String(identity_id)
+      });
+      await writeState(state);
+      json(res, 200, topic);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/topics/delete") {
+      const { topic_id, identity_id } = await parseBody(req);
+      if (!topic_id || !identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const state = await readState();
+      const topic = ensureTopic(state, topic_id);
+      const group = ensureGroup(state, topic.group_id);
+
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (String(topic.author_identity_id || "") !== String(identity_id)) {
+        json(res, 403, { error: "NOT_TOPIC_OWNER" });
+        return;
+      }
+      if (isTopicDeleted(topic)) {
+        json(res, 409, { error: "TOPIC_ALREADY_DELETED" });
+        return;
+      }
+
+      topic.status = "deleted";
+      topic.deleted_at = nowIso();
+      topic.deleted_by_identity_id = String(identity_id);
+      topic.archived_at = null;
+      topic.body = null;
+      topic.image_url = null;
+      topic.link_url = null;
+      topic.updated_at = nowIso();
+
+      addEvent(state, "TOPIC_DELETED", {
+        topic_id: String(topic.id),
+        identity_id: String(identity_id)
+      });
+      await writeState(state);
+      json(res, 200, topic);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/topics/archive") {
+      const { topic_id, identity_id, status } = await parseBody(req);
+      if (!topic_id || !identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const nextStatus = String(status || "archived").trim().toLowerCase();
+      if (!["active", "archived"].includes(nextStatus)) {
+        json(res, 400, { error: "INVALID_TOPIC_STATUS" });
+        return;
+      }
+      const state = await readState();
+      const topic = ensureTopic(state, topic_id);
+      const group = ensureGroup(state, topic.group_id);
+      if (!isGroupAdminIdentity(group, identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+      if (isTopicDeleted(topic)) {
+        json(res, 403, { error: "TOPIC_DELETED" });
+        return;
+      }
+
+      topic.status = nextStatus;
+      topic.archived_at = nextStatus === "archived" ? nowIso() : null;
+      topic.updated_at = nowIso();
+      addEvent(state, "TOPIC_STATUS_UPDATED", {
+        topic_id: String(topic.id),
+        identity_id: String(identity_id),
+        status: nextStatus
+      });
+      await writeState(state);
+      json(res, 200, topic);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/topics") {
+      const localState = await readState();
+      const state = shouldUseIndexerReads()
+        ? mergeStateWithReadModel(localState, (await getReadModel()) || {})
+        : localState;
+      const enrichedTopics = (state.topics || []).map((topic) => {
         const signal_count = (state.signals || []).filter(s => s.topic_id === topic.id).length;
         return {
           ...topic,
@@ -1268,18 +1768,38 @@ const server = createServer(async (req, res) => {
       const { group_id, topic_id, proof } = await parseBody(req);
       const state = await readState();
       const group = ensureGroup(state, group_id);
+      const authorityMode = chainAuthorityEnabled();
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
 
       if (Number(proof.merkle_tree_depth) !== CIRCUIT_DEPTH) {
         json(res, 400, { error: "DEPTH_MISMATCH" });
         return;
       }
-      if (!group.roots_history.some((x) => String(x.root) === String(proof.merkle_tree_root))) {
-        json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
-        return;
-      }
-      if (state.nullifiers[proof.nullifier]) {
-        json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
-        return;
+      if (authorityMode) {
+        const authorityState = await getAuthorityState();
+        const chainRoot = String(authorityState.rootsByGroup?.[String(group_id)] || "");
+        const proofRoot = String(proof.merkle_tree_root || "");
+        const inLocalRootHistory = group.roots_history.some((x) => String(x.root) === proofRoot);
+        if ((!chainRoot || chainRoot !== proofRoot) && !inLocalRootHistory) {
+          json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
+          return;
+        }
+        if (authorityState.nullifierSet.has(String(proof.nullifier))) {
+          json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
+          return;
+        }
+      } else {
+        if (!group.roots_history.some((x) => String(x.root) === String(proof.merkle_tree_root))) {
+          json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
+          return;
+        }
+        if (state.nullifiers[proof.nullifier]) {
+          json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
+          return;
+        }
       }
 
       await verifyLocalProof(proof);
@@ -1305,6 +1825,16 @@ const server = createServer(async (req, res) => {
           ) || null
         : null;
       const matchedTopic = matchedTopicByScope || matchedTopicById;
+      if (matchedTopic) {
+        if (isTopicDeleted(matchedTopic)) {
+          json(res, 403, { error: "TOPIC_DELETED" });
+          return;
+        }
+        if (isTopicArchived(matchedTopic)) {
+          json(res, 403, { error: "TOPIC_LOCKED" });
+          return;
+        }
+      }
       if (matchedTopic?.type === "poll" && matchedTopic?.poll?.counts) {
         const vote = String(proof.message || "").toUpperCase();
         if (vote === "YES" || vote === "NO") {
@@ -1354,11 +1884,22 @@ const server = createServer(async (req, res) => {
         scope: String(proof.scope),
         prover_version: String(proof.prover_version || PROVER_VERSION)
       });
-      await attemptOnchainRelay(state, "SIGNAL_SUBMIT", relaySignalSubmit, {
+      const signalRelayPayload = {
         group_id: String(group_id),
+        topic_id: matchedTopic?.id ? String(matchedTopic.id) : null,
         proof
-      });
+      };
+      if (authorityMode) {
+        const relayResult = await executeOnchainRelay("SIGNAL_SUBMIT", relaySignalSubmit, signalRelayPayload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
       await writeState(state);
+      if (!authorityMode) {
+        scheduleOnchainRelay("SIGNAL_SUBMIT", relaySignalSubmit, signalRelayPayload);
+      }
 
       json(res, 200, {
         ok: true,
@@ -1374,6 +1915,11 @@ const server = createServer(async (req, res) => {
       const { group_id, topic_id, proof } = await parseBody(req);
       const state = await readState();
       const group = ensureGroup(state, group_id);
+      const authorityMode = chainAuthorityEnabled();
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
       const topic = (state.topics || []).find(
         (t) => String(t.id) === String(topic_id) && String(t.group_id) === String(group_id)
       );
@@ -1381,18 +1927,41 @@ const server = createServer(async (req, res) => {
         json(res, 404, { error: "POLL_TOPIC_NOT_FOUND" });
         return;
       }
+      if (isTopicDeleted(topic)) {
+        json(res, 403, { error: "TOPIC_DELETED" });
+        return;
+      }
+      if (isTopicArchived(topic)) {
+        json(res, 403, { error: "TOPIC_LOCKED" });
+        return;
+      }
 
       if (Number(proof?.merkle_tree_depth) !== CIRCUIT_DEPTH) {
         json(res, 400, { error: "DEPTH_MISMATCH" });
         return;
       }
-      if (!group.roots_history.some((x) => String(x.root) === String(proof?.merkle_tree_root))) {
-        json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
-        return;
-      }
-      if (state.nullifiers[String(proof?.nullifier || "")]) {
-        json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
-        return;
+      if (authorityMode) {
+        const authorityState = await getAuthorityState();
+        const chainRoot = String(authorityState.rootsByGroup?.[String(group_id)] || "");
+        const proofRoot = String(proof?.merkle_tree_root || "");
+        const inLocalRootHistory = group.roots_history.some((x) => String(x.root) === proofRoot);
+        if ((!chainRoot || chainRoot !== proofRoot) && !inLocalRootHistory) {
+          json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
+          return;
+        }
+        if (authorityState.nullifierSet.has(String(proof?.nullifier || ""))) {
+          json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
+          return;
+        }
+      } else {
+        if (!group.roots_history.some((x) => String(x.root) === String(proof?.merkle_tree_root))) {
+          json(res, 400, { error: "ROOT_NOT_IN_GROUP" });
+          return;
+        }
+        if (state.nullifiers[String(proof?.nullifier || "")]) {
+          json(res, 400, { error: "NULLIFIER_ALREADY_USED" });
+          return;
+        }
       }
 
       const scopeText = typeof proof?.scope_text === "string" ? proof.scope_text : "";
@@ -1431,11 +2000,22 @@ const server = createServer(async (req, res) => {
         vote,
         nullifier: String(proof.nullifier)
       });
-      await attemptOnchainRelay(state, "POLL_VOTE", relayPollVote, {
+      const voteRelayPayload = {
         group_id: String(group_id),
+        topic_id: String(topic_id),
         proof
-      });
+      };
+      if (authorityMode) {
+        const relayResult = await executeOnchainRelay("POLL_VOTE", relayPollVote, voteRelayPayload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
       await writeState(state);
+      if (!authorityMode) {
+        scheduleOnchainRelay("POLL_VOTE", relayPollVote, voteRelayPayload);
+      }
 
       json(res, 200, {
         ok: true,
@@ -1450,11 +2030,38 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/api/comment") {
       const { group_id, topic_id, identity_id, message, parent_id } = await parseBody(req);
+      if (!group_id || !topic_id || !identity_id || !String(message || "").trim()) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
       const state = await readState();
 
       const matchedTopic = (state.topics || []).find(t => String(t.id) === String(topic_id));
       if (!matchedTopic) {
         json(res, 404, { error: "TOPIC_NOT_FOUND" });
+        return;
+      }
+      if (String(matchedTopic.group_id) !== String(group_id)) {
+        json(res, 400, { error: "TOPIC_GROUP_MISMATCH" });
+        return;
+      }
+      const group = ensureGroup(state, group_id);
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (isTopicDeleted(matchedTopic)) {
+        json(res, 403, { error: "TOPIC_DELETED" });
+        return;
+      }
+      if (isTopicArchived(matchedTopic)) {
+        json(res, 403, { error: "TOPIC_LOCKED" });
+        return;
+      }
+      const identity = ensureIdentity(state, identity_id);
+      const canComment = isGroupMemberIdentity(group, identity) || isGroupAdminIdentity(group, identity_id);
+      if (!canComment) {
+        json(res, 403, { error: "COMMENT_CREATE_FORBIDDEN" });
         return;
       }
 
@@ -1463,7 +2070,7 @@ const server = createServer(async (req, res) => {
         id: hashHex(`comment:${group_id}:${identity_id}:${nowIso()}`).slice(0, 16),
         topic_id: String(topic_id),
         group_id: String(group_id),
-        identity_id: String(identity_id),
+        identity_id: String(identity.id),
         message: String(message ?? ""),
         reactions: {},
         reaction_users: {},
@@ -1499,7 +2106,21 @@ const server = createServer(async (req, res) => {
         json(res, 404, { error: "COMMENT_NOT_FOUND" });
         return;
       }
-      if (String(signal.identity_id || "") !== String(identity_id)) {
+      const group = ensureGroup(state, signal.group_id);
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (signal.topic_id) {
+        const topic = ensureTopic(state, signal.topic_id);
+        if (!isTopicActive(topic)) {
+          json(res, 403, { error: isTopicDeleted(topic) ? "TOPIC_DELETED" : "TOPIC_LOCKED" });
+          return;
+        }
+      }
+      const isOwner = String(signal.identity_id || "") === String(identity_id);
+      const isAdmin = isGroupAdminIdentity(group, identity_id);
+      if (!isOwner && !isAdmin) {
         json(res, 403, { error: "NOT_COMMENT_OWNER" });
         return;
       }
@@ -1511,7 +2132,11 @@ const server = createServer(async (req, res) => {
       signal.message = String(message).trim();
       signal.edited_at = nowIso();
       signal.updated_at = nowIso();
-      addEvent(state, "COMMENT_EDITED", { signal_id: String(signal.id), identity_id: String(identity_id) });
+      addEvent(state, "COMMENT_EDITED", {
+        signal_id: String(signal.id),
+        identity_id: String(identity_id),
+        edited_by_admin: Boolean(!isOwner && isAdmin)
+      });
       await writeState(state);
 
       json(res, 200, { ok: true, signal_id: signal.id, edited_at: signal.edited_at });
@@ -1530,7 +2155,21 @@ const server = createServer(async (req, res) => {
         json(res, 404, { error: "COMMENT_NOT_FOUND" });
         return;
       }
-      if (String(signal.identity_id || "") !== String(identity_id)) {
+      const group = ensureGroup(state, signal.group_id);
+      if (isGroupArchived(group)) {
+        json(res, 403, { error: "GROUP_ARCHIVED" });
+        return;
+      }
+      if (signal.topic_id) {
+        const topic = ensureTopic(state, signal.topic_id);
+        if (!isTopicActive(topic)) {
+          json(res, 403, { error: isTopicDeleted(topic) ? "TOPIC_DELETED" : "TOPIC_LOCKED" });
+          return;
+        }
+      }
+      const isOwner = String(signal.identity_id || "") === String(identity_id);
+      const isAdmin = isGroupAdminIdentity(group, identity_id);
+      if (!isOwner && !isAdmin) {
         json(res, 403, { error: "NOT_COMMENT_OWNER" });
         return;
       }
@@ -1553,11 +2192,214 @@ const server = createServer(async (req, res) => {
       addEvent(state, "COMMENT_DELETED", {
         signal_id: String(signal.id),
         identity_id: String(identity_id),
-        removed_count: toDelete.size
+        removed_count: toDelete.size,
+        deleted_by_admin: Boolean(!isOwner && isAdmin)
       });
       await writeState(state);
 
       json(res, 200, { ok: true, signal_id: signal.id, removed_count: toDelete.size });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/admin/add-member") {
+      const { group_id, identity_commitment, admin_identity_id } = await parseBody(req);
+      if (!group_id || !identity_commitment || !admin_identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+      if (group.leaves.includes(String(identity_commitment))) {
+        json(res, 409, { error: "ALREADY_MEMBER" });
+        return;
+      }
+      const capacity = 2 ** Number(group.depth || CIRCUIT_DEPTH);
+      if (group.leaves.length >= capacity) {
+        json(res, 409, { error: "GROUP_FULL" });
+        return;
+      }
+
+      group.leaves.push(String(identity_commitment));
+      group.root = computeMerkleRoot(CIRCUIT_DEPTH, group.leaves);
+      group.roots_history.push({ root: group.root, at: nowIso() });
+      group.updated_at = nowIso();
+      addEvent(state, "ADMIN_MEMBER_ADDED", {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        new_root: String(group.root)
+      });
+      structuredLog("admin_add_member", {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        new_root: String(group.root)
+      });
+
+      const payload = {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        expected_root: String(group.root)
+      };
+      let relayResult = {
+        status: "QUEUED",
+        tx_hash: null,
+        idempotency_key: null
+      };
+      if (chainAuthorityEnabled()) {
+        relayResult = await executeOnchainRelay("GROUP_JOIN", relayGroupJoin, payload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
+
+      await writeState(state);
+      if (!chainAuthorityEnabled()) {
+        scheduleOnchainRelay("GROUP_JOIN", relayGroupJoin, payload);
+      }
+      json(res, 200, {
+        ...group,
+        relay: relayResult
+          ? {
+            status: String(relayResult.status || "UNKNOWN"),
+            tx_hash: relayResult.tx_hash ? String(relayResult.tx_hash) : null,
+            idempotency_key: relayResult.idempotency_key ? String(relayResult.idempotency_key) : null
+          }
+          : null
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/admin/remove-member") {
+      const { group_id, identity_commitment, admin_identity_id } = await parseBody(req);
+      if (!group_id || !identity_commitment || !admin_identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+      const leafIndex = group.leaves.findIndex((leaf) => String(leaf) === String(identity_commitment));
+      if (leafIndex < 0) {
+        json(res, 404, { error: "MEMBER_NOT_FOUND" });
+        return;
+      }
+
+      group.leaves = group.leaves.filter((leaf) => String(leaf) !== String(identity_commitment));
+      group.root = computeMerkleRoot(CIRCUIT_DEPTH, group.leaves);
+      group.roots_history.push({ root: group.root, at: nowIso() });
+      group.updated_at = nowIso();
+      addEvent(state, "ADMIN_MEMBER_REMOVED", {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        leaf_index: leafIndex,
+        new_root: String(group.root)
+      });
+      structuredLog("admin_remove_member", {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        leaf_index: leafIndex,
+        new_root: String(group.root)
+      });
+
+      const payload = {
+        group_id: String(group_id),
+        identity_commitment: String(identity_commitment),
+        leaf_index: leafIndex,
+        expected_root: String(group.root)
+      };
+      let relayResult = {
+        status: "QUEUED",
+        tx_hash: null,
+        idempotency_key: null
+      };
+      if (chainAuthorityEnabled()) {
+        relayResult = await executeOnchainRelay("GROUP_REMOVE", relayGroupRemove, payload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
+
+      await writeState(state);
+      if (!chainAuthorityEnabled()) {
+        scheduleOnchainRelay("GROUP_REMOVE", relayGroupRemove, payload);
+      }
+      json(res, 200, {
+        ...group,
+        relay: relayResult
+          ? {
+            status: String(relayResult.status || "UNKNOWN"),
+            tx_hash: relayResult.tx_hash ? String(relayResult.tx_hash) : null,
+            idempotency_key: relayResult.idempotency_key ? String(relayResult.idempotency_key) : null
+          }
+          : null
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/admin/update-policy") {
+      const { group_id, eligibility_policy, admin_identity_id } = await parseBody(req);
+      if (!group_id || !admin_identity_id) {
+        json(res, 400, { error: "MISSING_FIELDS" });
+        return;
+      }
+      const state = await readState();
+      const group = ensureGroup(state, group_id);
+      if (!isGroupAdminIdentity(group, admin_identity_id)) {
+        json(res, 403, { error: "NOT_GROUP_ADMIN" });
+        return;
+      }
+
+      const normalizedPolicy = validateEligibilityPolicy(eligibility_policy);
+      group.eligibility_policy = normalizedPolicy;
+      group.updated_at = nowIso();
+      addEvent(state, "ADMIN_POLICY_UPDATED", {
+        group_id: String(group_id),
+        eligibility_policy: normalizedPolicy
+      });
+      structuredLog("admin_update_policy", {
+        group_id: String(group_id),
+        policy_type: String(normalizedPolicy?.type || "open")
+      });
+
+      const payload = {
+        group_id: String(group_id),
+        eligibility_policy: normalizedPolicy
+      };
+      let relayResult = {
+        status: "QUEUED",
+        tx_hash: null,
+        idempotency_key: null
+      };
+      if (chainAuthorityEnabled()) {
+        relayResult = await executeOnchainRelay("POLICY_UPDATE", relayPolicyUpdate, payload, state);
+        if (!relayResult?.status || (relayResult.status !== "RELAYED" && relayResult.status !== "SKIPPED_FLAG_OFF")) {
+          json(res, 502, { error: "ONCHAIN_RELAY_FAILED" });
+          return;
+        }
+      }
+
+      await writeState(state);
+      if (!chainAuthorityEnabled()) {
+        scheduleOnchainRelay("POLICY_UPDATE", relayPolicyUpdate, payload);
+      }
+      json(res, 200, {
+        ...group,
+        relay: relayResult
+          ? {
+            status: String(relayResult.status || "UNKNOWN"),
+            tx_hash: relayResult.tx_hash ? String(relayResult.tx_hash) : null,
+            idempotency_key: relayResult.idempotency_key ? String(relayResult.idempotency_key) : null
+          }
+          : null
+      });
       return;
     }
 
@@ -1581,6 +2423,35 @@ const server = createServer(async (req, res) => {
         json(res, 404, { error: "TARGET_NOT_FOUND" });
         return;
       }
+      if (target_type === "topic") {
+        const group = ensureGroup(state, targetObj.group_id);
+        if (isGroupArchived(group)) {
+          json(res, 403, { error: "GROUP_ARCHIVED" });
+          return;
+        }
+        if (!isTopicActive(targetObj)) {
+          json(res, 403, { error: isTopicDeleted(targetObj) ? "TOPIC_DELETED" : "TOPIC_LOCKED" });
+          return;
+        }
+      }
+      if (target_type === "signal") {
+        if (targetObj.deleted_at) {
+          json(res, 403, { error: "COMMENT_DELETED" });
+          return;
+        }
+        if (targetObj.topic_id) {
+          const topic = ensureTopic(state, targetObj.topic_id);
+          const group = ensureGroup(state, topic.group_id);
+          if (isGroupArchived(group)) {
+            json(res, 403, { error: "GROUP_ARCHIVED" });
+            return;
+          }
+          if (!isTopicActive(topic)) {
+            json(res, 403, { error: isTopicDeleted(topic) ? "TOPIC_DELETED" : "TOPIC_LOCKED" });
+            return;
+          }
+        }
+      }
 
       const outcome = applyReactionToggle(targetObj, identity_id, reaction_type);
       targetObj.updated_at = nowIso();
@@ -1590,9 +2461,18 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/drift/report") {
+      const state = await readState();
+      const report = generateDriftReport(state);
+      await writeDriftReport(report);
+      json(res, 200, report);
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/reset") {
       const state = seedState();
-      await writeState(state);
+      await writeState(state, { preserveExistingEvents: false });
+      await writeDriftReport(generateDriftReport(state));
       json(res, 200, { ok: true });
       return;
     }
@@ -1603,12 +2483,28 @@ const server = createServer(async (req, res) => {
   }
 });
 
+const indexerTimer = setInterval(async () => {
+  if (!shouldUseIndexerReads()) {
+    return;
+  }
+  try {
+    const state = await readState();
+    await refreshIndexerReadModel(state);
+  } catch (error) {
+    structuredLog("indexer_error", {
+      error: String(error?.message || "INDEXER_REFRESH_FAILED")
+    });
+  }
+}, Math.max(500, INDEXER_POLL_INTERVAL_MS));
+indexerTimer.unref();
+
 server.listen(PORT, HOST, () => {
   structuredLog("server_boot", {
     host: HOST,
     port: PORT,
     circuit_depth: CIRCUIT_DEPTH,
-    relay_mode: RELAY_MODE
+    relay_mode: RELAY_MODE,
+    indexer_poll_interval_ms: Math.max(500, INDEXER_POLL_INTERVAL_MS)
   });
   console.log(`Semaphore frontend server running at http://${HOST}:${PORT}`);
 });
