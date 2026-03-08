@@ -1,3 +1,24 @@
+<p align="center">
+  <svg width="100%" height="420" viewBox="0 0 1200 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Starkviel banner">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Bitcount+Prop+Double+Ink:wght@700&amp;display=swap');
+    </style>
+    <rect width="1200" height="420" fill="#ffffff"/>
+    <text
+      x="600"
+      y="210"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      fill="#000000"
+      font-family="'Bitcount Prop Double Ink', Arial, Helvetica, sans-serif"
+      font-size="56"
+      font-weight="700"
+    >
+      Starkviel
+    </text>
+  </svg>
+</p>
+
 # Semaphore Starknet (Cairo)
 
 Starknet-native Semaphore core preserving protocol semantics:
