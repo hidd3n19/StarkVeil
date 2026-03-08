@@ -1,4 +1,4 @@
-![Starkviel banner](assets/banner.svg)
+![Starkviel banner](assets/banner.png)
 
 # Semaphore Starknet (Cairo)
 
