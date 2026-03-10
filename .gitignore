@@ -7,8 +7,10 @@
 
 # Cairo/Starknet build & cache
 /target/
+**/target/
 /.snfoundry_cache/
 **/.snfoundry_cache/
+/.artifacts/
 
 # Logs and runtime output
 *.log
@@ -43,6 +45,6 @@
 # OS/editor junk
 .DS_Store
 Thumbs.db
+*.Zone.Identifier
 .vscode/
 .idea/
-vibe
