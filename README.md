@@ -1,5 +1,9 @@
 ![Starkviel banner](assets/banner.png)
 
+# StarkVeil port summary
+
+StarkVeil is intended as a Starknet/Cairo port of Semaphore that reuses the upstream Semaphore v4 circuit and proving artifact stack rather than redefining the protocol's core cryptography. The intended reuse is the upstream circuit, identity and group semantics, proof-generation flow, proving artifacts such as `.wasm` and `.zkey`, and the matching verification key from the same upstream version. In this design, proofs remain generated off-chain, while Starknet handles protocol state and verification routing on-chain.
+
 # Semaphore Starknet (Cairo)
 
 Starknet-native Semaphore core preserving protocol semantics:
