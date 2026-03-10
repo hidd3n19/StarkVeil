@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "project": "starkveil-semaphore-port",
+  "deployment_flow": [
+    "declare_backend",
+    "deploy_backend",
+    "declare_adapter",
+    "deploy_adapter",
+    "declare_semaphore",
+    "deploy_semaphore",
+    "create_group",
+    "set_verifier"
+  ],
+  "contracts": {
+    "backend": {
+      "test_profile_class": "TestPublicInputAlignmentBackend",
+      "production_profile_package": "starkveil_groth16_backend",
+      "production_profile_class": "Groth16VerifierBN254"
+    },
+    "adapter": {
+      "class": "Groth16VerifierAdapter"
+    },
+    "semaphore": {
+      "class": "Semaphore"
+    }
+  },
+  "supported_depths": [
+    {
+      "depth": 20,
+      "vk_hash": "777",
+      "verification_key_artifact": "artifact-manifest.json:semaphore_depth_20_verification_key",
+      "test_backend_profile": "alignment-test-backend"
+    }
+  ]
+}

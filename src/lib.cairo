@@ -2,4 +2,6 @@ pub mod groth16_verifier_adapter;
 pub mod interfaces;
 pub mod semaphore;
 pub mod test_groth16_backend;
+pub mod test_public_input_alignment_backend;
 pub mod groth16_backend;
+pub mod real_groth16_bridge_backend;

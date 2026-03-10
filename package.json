@@ -1,0 +1,12 @@
+{
+  "name": "starkveil-offchain-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@semaphore-protocol/group": "4.13.0",
+    "@semaphore-protocol/identity": "4.13.0",
+    "ethers": "6.15.0",
+    "poseidon-lite": "0.3.0",
+    "snarkjs": "0.7.5"
+  }
+}

@@ -66,8 +66,8 @@ fn replay_failure_rejects_same_nullifier() {
     let mut proof = array![];
     proof.append(PROOF_MAGIC);
 
-    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 999, 11, 22, 33, proof.span());
-    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 999, 11, 22, 33, proof.span());
+    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 999, 11, 22, 33, 44, proof.span());
+    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 999, 11, 22, 33, 44, proof.span());
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn wrong_root_is_rejected() {
     let mut proof = array![];
     proof.append(PROOF_MAGIC);
 
-    semaphore.validate_proof(GROUP_ID, DEPTH_20, 999999, 1001, 11, 22, 33, proof.span());
+    semaphore.validate_proof(GROUP_ID, DEPTH_20, 999999, 1001, 11, 22, 33, 44, proof.span());
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn wrong_depth_is_rejected() {
     let mut proof = array![];
     proof.append(PROOF_MAGIC);
 
-    semaphore.validate_proof(GROUP_ID, 16, root, 1002, 11, 22, 33, proof.span());
+    semaphore.validate_proof(GROUP_ID, 16, root, 1002, 11, 22, 33, 44, proof.span());
 }
 
 #[test]
@@ -118,5 +118,5 @@ fn invalid_proof_is_rejected() {
     let mut bad_proof = array![];
     bad_proof.append(9999);
 
-    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 1003, 11, 22, 33, bad_proof.span());
+    semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 1003, 11, 22, 33, 44, bad_proof.span());
 }

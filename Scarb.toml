@@ -6,10 +6,12 @@ edition = "2024_07"
 [dependencies]
 starknet = ">=2.8.0"
 
+[lib]
+
 [[target.starknet-contract]]
 sierra = true
 casm = true
 
 [dev-dependencies]
 starknet = ">=2.8.0"
-snforge_std = "0.56.0"
+snforge_std = "0.57.0"

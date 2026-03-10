@@ -1,0 +1,140 @@
+use semaphore_starknet::interfaces::isemaphore::{ISemaphoreDispatcher, ISemaphoreDispatcherTrait};
+
+use snforge_std::{
+    ContractClassTrait,
+    DeclareResultTrait,
+    EventSpyTrait,
+    EventsFilterTrait,
+    declare,
+    map_entry_address,
+    spy_events,
+    start_cheat_caller_address,
+    store,
+    stop_cheat_caller_address,
+};
+
+const GROUP_ID: felt252 = 1;
+const DEPTH_20: u8 = 20;
+const VK_HASH: felt252 = 777;
+const ROOT: felt252 = 1915826951860152537973846421180435708428200415375148218822513943503006881772;
+const NULLIFIER: felt252 = 3458865867026562423864128494600834396845418179367624501223719005479595891815;
+const MESSAGE: felt252 = 11;
+const SCOPE: felt252 = 22;
+const MESSAGE_HASH: felt252 = 2579302562577254625442564198428206326386786986498533264305983357867499549;
+const SCOPE_HASH: felt252 = 381991507470523043981536760298699211324388782897715347961370496096313610818;
+
+fn owner() -> starknet::ContractAddress {
+    111.try_into().unwrap()
+}
+
+fn admin() -> starknet::ContractAddress {
+    222.try_into().unwrap()
+}
+
+fn build_submission_proof() -> Array<felt252> {
+    array![
+        42,
+        43,
+        1,
+        44,
+        45,
+        46,
+        47,
+        1,
+        0,
+        48,
+        49,
+        1
+    ]
+}
+
+fn seed_upstream_root(semaphore_addr: starknet::ContractAddress) {
+    let group_root_addr = map_entry_address(selector!("group_root"), array![GROUP_ID].span());
+    let group_root_exists_addr = map_entry_address(
+        selector!("group_root_exists"), array![GROUP_ID, ROOT].span()
+    );
+    let group_root_created_at_addr = map_entry_address(
+        selector!("group_root_created_at"), array![GROUP_ID, ROOT].span()
+    );
+
+    store(semaphore_addr, group_root_addr, array![ROOT].span());
+    store(semaphore_addr, group_root_exists_addr, array![1].span());
+    store(semaphore_addr, group_root_created_at_addr, array![1].span());
+}
+
+fn deploy_submission_stack() -> (ISemaphoreDispatcher, starknet::ContractAddress) {
+    let backend_class = declare("TestPublicInputAlignmentBackend").unwrap().contract_class();
+    let mut backend_args = array![];
+    backend_args.append(VK_HASH);
+    backend_args.append(ROOT);
+    backend_args.append(NULLIFIER);
+    backend_args.append(MESSAGE_HASH);
+    backend_args.append(SCOPE_HASH);
+    backend_args.append(42);
+    backend_args.append(12);
+    let (backend_addr, _) = backend_class.deploy(@backend_args).unwrap();
+
+    let adapter_class = declare("Groth16VerifierAdapter").unwrap().contract_class();
+    let mut adapter_args = array![];
+    adapter_args.append(backend_addr.into());
+    adapter_args.append(VK_HASH);
+    let (adapter_addr, _) = adapter_class.deploy(@adapter_args).unwrap();
+
+    let semaphore_class = declare("Semaphore").unwrap().contract_class();
+    let mut semaphore_args = array![];
+    semaphore_args.append(owner().into());
+    let (semaphore_addr, _) = semaphore_class.deploy(@semaphore_args).unwrap();
+    let semaphore = ISemaphoreDispatcher { contract_address: semaphore_addr };
+
+    semaphore.create_group(GROUP_ID, admin(), DEPTH_20);
+    seed_upstream_root(semaphore_addr);
+
+    start_cheat_caller_address(semaphore_addr, owner());
+    semaphore.set_verifier(DEPTH_20, adapter_addr);
+    stop_cheat_caller_address(semaphore_addr);
+
+    (semaphore, semaphore_addr)
+}
+
+fn assert_single_proof_validated_event(
+    ref spy: snforge_std::EventSpy, semaphore_addr: starknet::ContractAddress,
+) {
+    let events = spy.get_events().emitted_by(semaphore_addr);
+    assert(events.events.len() == 1, 'POINT25_EVT_CNT');
+
+    for (_from, event) in events.events.span() {
+        assert(event.data.len() == 5, 'POINT25_EVT_LEN');
+        assert(*event.data.at(0) == GROUP_ID, 'POINT25_EVT_GID');
+        assert(*event.data.at(1) == ROOT, 'POINT25_EVT_ROOT');
+        assert(*event.data.at(2) == NULLIFIER, 'POINT25_EVT_NULL');
+        assert(*event.data.at(3) == MESSAGE, 'POINT25_EVT_MSG');
+        assert(*event.data.at(4) == SCOPE, 'POINT25_EVT_SCOPE');
+        return;
+    };
+
+    panic!("POINT25_NO_EVENT");
+}
+
+#[test]
+fn point_25_valid_submission_marks_nullifier_and_emits_proof_validated() {
+    let (semaphore, semaphore_addr) = deploy_submission_stack();
+    let mut spy = spy_events();
+    let proof = build_submission_proof();
+
+    assert(!semaphore.is_nullifier_used(NULLIFIER), 'POINT25_NULL_PRE');
+
+    semaphore.validate_proof(
+        GROUP_ID,
+        DEPTH_20,
+        ROOT,
+        NULLIFIER,
+        MESSAGE,
+        SCOPE,
+        MESSAGE_HASH,
+        SCOPE_HASH,
+        proof.span(),
+    );
+
+    assert(semaphore.is_nullifier_used(NULLIFIER), 'POINT25_NULL_POST');
+    assert_single_proof_validated_event(ref spy, semaphore_addr);
+}

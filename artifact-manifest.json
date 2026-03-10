@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "project": "starkveil-semaphore-port",
+  "upstream": {
+    "project": "semaphore",
+    "git_tag": "v4.13.0",
+    "artifact_version": "4.13.0",
+    "baseline_depth": 20
+  },
+  "semantics": {
+    "circuit_public_inputs": [
+      "message",
+      "scope"
+    ],
+    "circuit_outputs": [
+      "merkleRoot",
+      "nullifier"
+    ],
+    "verifier_public_inputs": [
+      "merkleTreeRoot",
+      "nullifier",
+      "messageHash",
+      "scopeHash"
+    ],
+    "hashing_rules": {
+      "message": "hash(message) before verifier input packing",
+      "scope": "hash(scope) before verifier input packing",
+      "nullifier": "computed in the upstream circuit from scope and secret"
+    }
+  },
+  "artifacts": [
+    {
+      "name": "upstream_circuit_source",
+      "kind": "circuit_source",
+      "version": "v4.13.0",
+      "url": "https://raw.githubusercontent.com/semaphore-protocol/semaphore/v4.13.0/packages/circuits/src/semaphore.circom",
+      "sha256": "d67fbae4504476569c03ce7beb23bacf4c4ebb9cbd8f49888f57ed14b288e486"
+    },
+    {
+      "name": "semaphore_depth_20_wasm",
+      "kind": "wasm",
+      "version": "4.13.0",
+      "depth": 20,
+      "url": "https://snark-artifacts.pse.dev/semaphore/4.13.0/semaphore-20.wasm",
+      "sha256": "6f71e55586929e520e76027ebe067daac8b41e2f4b8057313a5fd0304e1e44ee"
+    },
+    {
+      "name": "semaphore_depth_20_zkey",
+      "kind": "zkey",
+      "version": "4.13.0",
+      "depth": 20,
+      "url": "https://snark-artifacts.pse.dev/semaphore/4.13.0/semaphore-20.zkey",
+      "sha256": "33f9a067a80c7daf90e085449073613a9559a1904dd40aeb6d603afb7988c2cc"
+    },
+    {
+      "name": "semaphore_depth_20_verification_key",
+      "kind": "verification_key",
+      "version": "4.13.0",
+      "depth": 20,
+      "url": "https://snark-artifacts.pse.dev/semaphore/4.13.0/semaphore-20.json",
+      "sha256": "6fda771369c19517c8f7575cb9f1d18a8846e46baa1dc0c032bac9492c29559e"
+    }
+  ]
+}
