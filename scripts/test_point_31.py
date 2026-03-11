@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / "scripts" / ".tmp_point_31"
 E2E_ROOT = ROOT / "starkveil_e2e"
+VERIFIER_CLASS_HASH = "0x0598d0f4685f333914064bfb4632b50432fce3679c3566625fb04cf6aa0bc345"
+POINT_31_FORK_RPC = "https://starknet-sepolia-rpc.publicnode.com"
 
 
 def fail(message: str) -> None:
@@ -66,17 +68,37 @@ def write_point31_files() -> None:
     )
 
 
+def ensure_verifier_declared(env: dict[str, str]) -> None:
+    result = subprocess.run(
+        [
+            "starkli",
+            "class-by-hash",
+            "--rpc",
+            env.get("POINT_31_FORK_RPC", POINT_31_FORK_RPC),
+            VERIFIER_CLASS_HASH,
+        ],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return
+    fail(
+        "point 31 verifier class is not declared on the fork RPC; run "
+        "`scripts/declare_point_31_verifier.sh` with Starkli account env configured"
+    )
+
+
 def main() -> int:
     env = os.environ.copy()
     path_parts = []
-    preferred_tool_paths = [
-        Path.home() / ".asdf/installs/starknet-foundry/0.53.0/bin",
-        Path.home() / ".asdf/installs/scarb/2.14.0/bin",
-        Path("/tmp/scarb-2.14.0/bin"),
+    helper_paths = [
         Path.home() / ".asdf/shims",
         Path.home() / ".local/bin",
     ]
-    for path in preferred_tool_paths:
+    for path in helper_paths:
         if path.exists():
             path_parts.append(str(path))
     path_parts.append(env.get("PATH", ""))
@@ -113,6 +135,7 @@ def main() -> int:
         encoding="utf-8",
     )
     write_point31_files()
+    ensure_verifier_declared(env)
 
     run(["snforge", "test", "point_31_"], E2E_ROOT, env)
     print("PASS: runtime validation for implementation point 31 and testing point 31 is satisfied")

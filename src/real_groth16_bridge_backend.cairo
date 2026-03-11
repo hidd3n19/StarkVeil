@@ -21,18 +21,6 @@ pub mod RealGroth16BridgeBackend {
     struct Storage {
         verifier_class_hash: ClassHash,
         expected_vk_hash: felt252,
-        input0: felt252,
-        input1: felt252,
-        input2: felt252,
-        input3: felt252,
-        input0_low: felt252,
-        input0_high: felt252,
-        input1_low: felt252,
-        input1_high: felt252,
-        input2_low: felt252,
-        input2_high: felt252,
-        input3_low: felt252,
-        input3_high: felt252,
     }
 
     #[constructor]
@@ -40,33 +28,9 @@ pub mod RealGroth16BridgeBackend {
         ref self: ContractState,
         verifier_class_hash: ClassHash,
         expected_vk_hash: felt252,
-        input0: felt252,
-        input1: felt252,
-        input2: felt252,
-        input3: felt252,
-        input0_low: felt252,
-        input0_high: felt252,
-        input1_low: felt252,
-        input1_high: felt252,
-        input2_low: felt252,
-        input2_high: felt252,
-        input3_low: felt252,
-        input3_high: felt252,
     ) {
         self.verifier_class_hash.write(verifier_class_hash);
         self.expected_vk_hash.write(expected_vk_hash);
-        self.input0.write(input0);
-        self.input1.write(input1);
-        self.input2.write(input2);
-        self.input3.write(input3);
-        self.input0_low.write(input0_low);
-        self.input0_high.write(input0_high);
-        self.input1_low.write(input1_low);
-        self.input1_high.write(input1_high);
-        self.input2_low.write(input2_low);
-        self.input2_high.write(input2_high);
-        self.input3_low.write(input3_low);
-        self.input3_high.write(input3_high);
     }
 
     #[abi(embed_v0)]
@@ -85,13 +49,6 @@ pub mod RealGroth16BridgeBackend {
                 return false;
             }
 
-            if *public_inputs.at(0) != self.input0.read()
-                || *public_inputs.at(1) != self.input1.read()
-                || *public_inputs.at(2) != self.input2.read()
-                || *public_inputs.at(3) != self.input3.read() {
-                return false;
-            }
-
             let verifier_class_hash = self.verifier_class_hash.read();
             let dispatcher = IRealGroth16VerifierBN254LibraryDispatcher { class_hash: verifier_class_hash };
 
@@ -102,21 +59,31 @@ pub mod RealGroth16BridgeBackend {
                         return false;
                     }
 
-                    let input0 = *returned_public_inputs.at(0);
-                    let input1 = *returned_public_inputs.at(1);
-                    let input2 = *returned_public_inputs.at(2);
-                    let input3 = *returned_public_inputs.at(3);
+                    let mut index: usize = 0;
+                    loop {
+                        if index == 4 {
+                            break;
+                        }
 
-                    input0.low.into() == self.input0_low.read()
-                        && input0.high.into() == self.input0_high.read()
-                        && input1.low.into() == self.input1_low.read()
-                        && input1.high.into() == self.input1_high.read()
-                        && input2.low.into() == self.input2_low.read()
-                        && input2.high.into() == self.input2_high.read()
-                        && input3.low.into() == self.input3_low.read()
-                        && input3.high.into() == self.input3_high.read()
+                        let returned_input = *returned_public_inputs.at(index);
+                        let expected_input = *public_inputs.at(index);
+                        if !returned_input_matches_expected(returned_input, expected_input) {
+                            return false;
+                        }
+
+                        index += 1;
+                    };
+
+                    true
                 }
             }
+        }
+    }
+
+    fn returned_input_matches_expected(returned_input: u256, expected_input: felt252) -> bool {
+        match returned_input.try_into() {
+            Option::Some(value) => value == expected_input,
+            Option::None => false,
         }
     }
 }

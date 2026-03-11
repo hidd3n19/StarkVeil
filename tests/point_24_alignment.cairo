@@ -4,9 +4,7 @@ use snforge_std::{
     ContractClassTrait,
     DeclareResultTrait,
     declare,
-    map_entry_address,
     start_cheat_caller_address,
-    store,
     stop_cheat_caller_address,
 };
 
@@ -36,20 +34,6 @@ fn build_alignment_test_proof() -> Array<felt252> {
     proof
 }
 
-fn seed_upstream_root(semaphore_addr: starknet::ContractAddress) {
-    let group_root_addr = map_entry_address(selector!("group_root"), array![GROUP_ID].span());
-    let group_root_exists_addr = map_entry_address(
-        selector!("group_root_exists"), array![GROUP_ID, ROOT].span()
-    );
-    let group_root_created_at_addr = map_entry_address(
-        selector!("group_root_created_at"), array![GROUP_ID, ROOT].span()
-    );
-
-    store(semaphore_addr, group_root_addr, array![ROOT].span());
-    store(semaphore_addr, group_root_exists_addr, array![1].span());
-    store(semaphore_addr, group_root_created_at_addr, array![1].span());
-}
-
 fn deploy_alignment_stack() -> (ISemaphoreDispatcher, starknet::ContractAddress) {
     let backend_class = declare("TestPublicInputAlignmentBackend").unwrap().contract_class();
     let mut backend_args = array![];
@@ -75,10 +59,13 @@ fn deploy_alignment_stack() -> (ISemaphoreDispatcher, starknet::ContractAddress)
     let semaphore = ISemaphoreDispatcher { contract_address: semaphore_addr };
 
     semaphore.create_group(GROUP_ID, admin(), DEPTH_20);
-    seed_upstream_root(semaphore_addr);
 
     start_cheat_caller_address(semaphore_addr, owner());
     semaphore.set_verifier(DEPTH_20, adapter_addr);
+    stop_cheat_caller_address(semaphore_addr);
+
+    start_cheat_caller_address(semaphore_addr, admin());
+    semaphore.add_member(GROUP_ID, ROOT);
     stop_cheat_caller_address(semaphore_addr);
 
     (semaphore, semaphore_addr)

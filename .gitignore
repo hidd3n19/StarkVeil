@@ -15,6 +15,10 @@
 # Logs and runtime output
 *.log
 **/*.log
+*.pyc
+**/*.pyc
+__pycache__/
+**/__pycache__/
 
 # Local environment files
 .env
@@ -35,6 +39,21 @@
 
 # Local screenshots and temp assets
 /semaphore-frontend/screenshots/
+/scripts/.tmp_point_31/
+
+# Local wallet / keystore / secret material
+*.pem
+*.key
+*.keystore
+*.keystore.json
+*.password
+**/*.pem
+**/*.key
+**/*.keystore
+**/*.keystore.json
+**/*.password
+.starkli-wallets/
+**/.starkli-wallets/
 
 # Keep only README markdowns tracked by default
 *.md

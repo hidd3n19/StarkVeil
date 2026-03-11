@@ -25,8 +25,31 @@ Starknet-native Semaphore core preserving protocol semantics:
   - implements `IVerifier`
   - forwards verification to a Groth16 backend contract implementing `IGroth16Backend`
   - intended adapter point for Garaga-style BN254 verifier backends
+- `src/real_groth16_bridge_backend.cairo`
+  - generic real BN254 bridge backend
+  - library-calls the declared `Groth16VerifierBN254` class
+  - checks returned public inputs against StarkVeil runtime inputs
 - `src/test_groth16_backend.cairo`
   - deterministic backend used by integration tests only.
+
+## Live Starknet Sepolia deployment
+
+These are the live contracts used for the real upstream proof acceptance flow on `Starknet Sepolia`.
+
+- `Groth16VerifierBN254` class hash: `0x0598d0f4685f333914064bfb4632b50432fce3679c3566625fb04cf6aa0bc345`
+  - this is the real declared BN254 verifier class
+  - it is a class hash, not a deployed contract address
+- `RealGroth16BridgeBackend`: `0x055aecde30ae1f25b638aad4d3fa3666e2f4f831b5811982fa3253dd028284ed`
+  - StarkVeil backend contract that calls the real verifier class and validates the expected public inputs
+- `Groth16VerifierAdapter`: `0x00fec1a4666c7c432244fd6a291083ba9e4917362d5d9e55fed73b4edc3f88b1`
+  - StarkVeil adapter contract that exposes the `IVerifier` interface expected by the main Semaphore/StarkVeil contract
+- `Semaphore` / main `StarkVeil` contract: `0x02eb60aa229b096a73aea78c056c75154420d3ace68347707912a204c4f7b165`
+  - this is the main StarkVeil application contract
+  - the contract is named `Semaphore` because StarkVeil is a Starknet port of Semaphore protocol behavior
+
+Proof acceptance on this live deployment was verified with:
+
+- `validate_proof` tx: `0x05f90c821d8e82515b3e7661bf7ac59fb9096d07fd7899c1a63fc74311ad06b8`
 
 ## Specification
 

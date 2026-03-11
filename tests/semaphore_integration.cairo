@@ -120,3 +120,14 @@ fn invalid_proof_is_rejected() {
 
     semaphore.validate_proof(GROUP_ID, DEPTH_20, root, 1003, 11, 22, 33, 44, bad_proof.span());
 }
+
+#[test]
+#[should_panic(expected: 'GROUP_HAS_NO_MEMBERS')]
+fn empty_group_is_rejected() {
+    let (semaphore, _) = deploy_stack();
+
+    let mut proof = array![];
+    proof.append(PROOF_MAGIC);
+
+    semaphore.validate_proof(GROUP_ID, DEPTH_20, 0, 1004, 11, 22, 33, 44, proof.span());
+}

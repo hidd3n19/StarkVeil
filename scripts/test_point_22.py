@@ -21,15 +21,12 @@ def main() -> int:
     env = os.environ.copy()
     path_parts = []
 
-    preferred_tool_paths = [
-        Path.home() / ".asdf/installs/starknet-foundry/0.53.0/bin",
-        Path.home() / ".asdf/installs/scarb/2.14.0/bin",
-        Path("/tmp/scarb-2.14.0/bin"),
+    helper_paths = [
         Path.home() / ".asdf/shims",
         Path.home() / ".local/bin",
     ]
 
-    for path in preferred_tool_paths:
+    for path in helper_paths:
         if path.exists():
             path_parts.append(str(path))
 

@@ -3,6 +3,7 @@ use crate::interfaces::iverifier::{IVerifierDispatcher, IVerifierDispatcherTrait
 
 const MAX_DEPTH: u8 = 32;
 const ZERO_FELT: felt252 = 0;
+const DEFAULT_MERKLE_TREE_DURATION: u64 = 3600_u64;
 
 #[starknet::contract]
 pub mod Semaphore {
@@ -17,7 +18,14 @@ pub mod Semaphore {
         StoragePointerWriteAccess
     };
 
-    use super::{IVerifierDispatcher, IVerifierDispatcherTrait, ISemaphore, MAX_DEPTH, ZERO_FELT};
+    use super::{
+        IVerifierDispatcher,
+        IVerifierDispatcherTrait,
+        ISemaphore,
+        MAX_DEPTH,
+        ZERO_FELT,
+        DEFAULT_MERKLE_TREE_DURATION,
+    };
 
     #[storage]
     struct Storage {
@@ -30,6 +38,7 @@ pub mod Semaphore {
         group_exists: Map<felt252, bool>,
         group_admin: Map<felt252, ContractAddress>,
         group_depth: Map<felt252, u8>,
+        group_merkle_tree_duration: Map<felt252, u64>,
         // number of inserted leaves (append index cursor)
         group_size: Map<felt252, u64>,
         group_root: Map<felt252, felt252>,
@@ -55,6 +64,7 @@ pub mod Semaphore {
         VerifierSet: VerifierSet,
         GroupCreated: GroupCreated,
         GroupAdminUpdated: GroupAdminUpdated,
+        GroupMerkleTreeDurationUpdated: GroupMerkleTreeDurationUpdated,
         MemberAdded: MemberAdded,
         MemberUpdated: MemberUpdated,
         MemberRemoved: MemberRemoved,
@@ -86,6 +96,13 @@ pub mod Semaphore {
         group_id: felt252,
         previous_admin: ContractAddress,
         new_admin: ContractAddress
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct GroupMerkleTreeDurationUpdated {
+        group_id: felt252,
+        previous_merkle_tree_duration: u64,
+        new_merkle_tree_duration: u64
     }
 
     #[derive(Drop, starknet::Event)]
@@ -185,9 +202,10 @@ pub mod Semaphore {
             self.group_exists.write(group_id, true);
             self.group_admin.write(group_id, admin);
             self.group_depth.write(group_id, merkle_tree_depth);
+            self.group_merkle_tree_duration.write(group_id, DEFAULT_MERKLE_TREE_DURATION);
             self.group_size.write(group_id, 0_u64);
 
-            let root = zero_for_level(merkle_tree_depth);
+            let root = ZERO_FELT;
             self.group_root.write(group_id, root);
             self.group_root_exists.write((group_id, root), true);
             self
@@ -220,10 +238,32 @@ pub mod Semaphore {
                 );
         }
 
+        fn update_group_merkle_tree_duration(
+            ref self: ContractState, group_id: felt252, new_merkle_tree_duration: u64
+        ) {
+            assert_initialized(@self);
+            assert_group_exists(@self, group_id);
+            assert_group_admin(@self, group_id);
+
+            let previous_merkle_tree_duration = self.group_merkle_tree_duration.read(group_id);
+            self.group_merkle_tree_duration.write(group_id, new_merkle_tree_duration);
+            self
+                .emit(
+                    Event::GroupMerkleTreeDurationUpdated(
+                        GroupMerkleTreeDurationUpdated {
+                            group_id,
+                            previous_merkle_tree_duration,
+                            new_merkle_tree_duration,
+                        }
+                    )
+                );
+        }
+
         fn add_member(ref self: ContractState, group_id: felt252, identity_commitment: felt252) {
             assert_initialized(@self);
             assert_group_exists(@self, group_id);
             assert_group_admin(@self, group_id);
+            assert(identity_commitment != ZERO_FELT, 'INVALID_MEMBER');
 
             let depth = self.group_depth.read(group_id);
             let capacity = tree_capacity(depth);
@@ -280,9 +320,7 @@ pub mod Semaphore {
             assert_group_exists(@self, group_id);
             assert_group_admin(@self, group_id);
             assert(new_identity_commitment != ZERO_FELT, 'INVALID_NEW_MEMBER');
-
             let depth = self.group_depth.read(group_id);
-            assert(siblings.len() == depth.into(), 'INVALID_SIBLINGS_LEN');
 
             assert_leaf_matches(@self, group_id, leaf_index, old_identity_commitment);
             assert_inclusion(@self, group_id, depth, leaf_index, old_identity_commitment, siblings);
@@ -323,9 +361,7 @@ pub mod Semaphore {
             assert_initialized(@self);
             assert_group_exists(@self, group_id);
             assert_group_admin(@self, group_id);
-
             let depth = self.group_depth.read(group_id);
-            assert(siblings.len() == depth.into(), 'INVALID_SIBLINGS_LEN');
 
             assert_leaf_matches(@self, group_id, leaf_index, identity_commitment);
             assert(identity_commitment != ZERO_FELT, 'MEMBER_ALREADY_REMOVED');
@@ -369,8 +405,19 @@ pub mod Semaphore {
             let stored_depth = self.group_depth.read(group_id);
             assert(stored_depth == merkle_tree_depth, 'DEPTH_MISMATCH');
 
-            let root_exists = self.group_root_exists.read((group_id, merkle_tree_root));
-            assert(root_exists, 'ROOT_NOT_IN_GROUP');
+            let group_size = self.group_size.read(group_id);
+            assert(group_size > 0_u64, 'GROUP_HAS_NO_MEMBERS');
+
+            let current_root = self.group_root.read(group_id);
+            if merkle_tree_root != current_root {
+                let root_exists = self.group_root_exists.read((group_id, merkle_tree_root));
+                assert(root_exists, 'ROOT_NOT_IN_GROUP');
+
+                let root_created_at = self.group_root_created_at.read((group_id, merkle_tree_root));
+                let merkle_tree_duration = self.group_merkle_tree_duration.read(group_id);
+                let expires_at = root_created_at + merkle_tree_duration;
+                assert(starknet::get_block_timestamp() <= expires_at, 'ROOT_EXPIRED');
+            }
 
             let used = self.nullifier_used.read(nullifier);
             assert(!used, 'NULLIFIER_ALREADY_USED');
@@ -466,8 +513,13 @@ pub mod Semaphore {
         leaf: felt252,
         siblings: Span<felt252>
     ) {
+        let _ = depth;
         let current_root = self.group_root.read(group_id);
-        let computed_root = compute_root_from_path(depth, leaf_index, leaf, siblings);
+        let size = self.group_size.read(group_id);
+        let dynamic_depth = lean_tree_depth(size);
+        let computed_root = compute_root_from_path(
+            self, group_id, dynamic_depth, leaf_index, leaf, siblings
+        );
         assert(computed_root == current_root, 'INVALID_MERKLE_PROOF');
     }
 
@@ -492,17 +544,21 @@ pub mod Semaphore {
         cap
     }
 
-    fn zero_for_level(level: u8) -> felt252 {
-        let mut v: felt252 = ZERO_FELT;
-        let mut i: u8 = 0_u8;
+    fn lean_tree_depth(size: u64) -> u8 {
+        if size <= 1_u64 {
+            return 0_u8;
+        }
+
+        let mut width = 1_u64;
+        let mut depth = 0_u8;
         loop {
-            if i == level {
+            if width >= size {
                 break;
             }
-            v = hash2(v, v);
-            i = i + 1_u8;
+            width = width * 2_u64;
+            depth = depth + 1_u8;
         };
-        v
+        depth
     }
 
     fn hash2(left: felt252, right: felt252) -> felt252 {
@@ -512,15 +568,6 @@ pub mod Semaphore {
         state.finalize()
     }
 
-    fn read_node_or_zero(self: @ContractState, group_id: felt252, level: u8, index: u64) -> felt252 {
-        let exists = self.group_node_exists.read((group_id, level, index));
-        if exists {
-            self.group_node_hash.read((group_id, level, index))
-        } else {
-            zero_for_level(level)
-        }
-    }
-
     fn recompute_and_store_path_append(
         ref self: ContractState,
         group_id: felt252,
@@ -528,37 +575,31 @@ pub mod Semaphore {
         leaf_index: u64,
         new_leaf: felt252
     ) -> felt252 {
+        let _ = depth;
         let mut node = new_leaf;
         let mut index = leaf_index;
         let mut level = 0_u8;
-
-        self.group_node_hash.write((group_id, 0_u8, leaf_index), node);
-        self.group_node_exists.write((group_id, 0_u8, leaf_index), true);
+        let dynamic_depth = lean_tree_depth(leaf_index + 1_u64);
 
         loop {
-            if level == depth {
+            if level == dynamic_depth {
                 break;
             }
 
-            let is_left = index % 2_u64 == 0_u64;
-            let sibling_index = if is_left { index + 1_u64 } else { index - 1_u64 };
+            self.group_node_hash.write((group_id, level, index), node);
+            self.group_node_exists.write((group_id, level, index), true);
 
-            let sibling = read_node_or_zero(@self, group_id, level, sibling_index);
+            if index % 2_u64 == 1_u64 {
+                let sibling = self.group_node_hash.read((group_id, level, index - 1_u64));
+                node = hash2(sibling, node);
+            }
 
-            let parent = if is_left {
-                hash2(node, sibling)
-            } else {
-                hash2(sibling, node)
-            };
-
-            let parent_index = index / 2_u64;
-            self.group_node_hash.write((group_id, level + 1_u8, parent_index), parent);
-            self.group_node_exists.write((group_id, level + 1_u8, parent_index), true);
-
-            node = parent;
-            index = parent_index;
+            index = index / 2_u64;
             level = level + 1_u8;
         };
+
+        self.group_node_hash.write((group_id, dynamic_depth, 0_u64), node);
+        self.group_node_exists.write((group_id, dynamic_depth, 0_u64), true);
 
         node
     }
@@ -571,55 +612,83 @@ pub mod Semaphore {
         new_leaf: felt252,
         siblings: Span<felt252>
     ) -> felt252 {
+        let _ = depth;
+        let _ = siblings;
+        let size = self.group_size.read(group_id);
+        let dynamic_depth = lean_tree_depth(size);
         let mut node = new_leaf;
         let mut index = leaf_index;
         let mut level = 0_u8;
 
-        self.group_node_hash.write((group_id, 0_u8, leaf_index), node);
-        self.group_node_exists.write((group_id, 0_u8, leaf_index), true);
-
         loop {
-            if level == depth {
+            if level == dynamic_depth {
                 break;
             }
 
-            let sibling = *siblings.at(level.into());
-            let is_left = index % 2_u64 == 0_u64;
-            let parent = if is_left { hash2(node, sibling) } else { hash2(sibling, node) };
-            let parent_index = index / 2_u64;
+            self.group_node_hash.write((group_id, level, index), node);
+            self.group_node_exists.write((group_id, level, index), true);
 
-            self.group_node_hash.write((group_id, level + 1_u8, parent_index), parent);
-            self.group_node_exists.write((group_id, level + 1_u8, parent_index), true);
-
-            node = parent;
-            index = parent_index;
-            level = level + 1_u8;
-        };
-
-        node
-    }
-
-    fn compute_root_from_path(
-        depth: u8, leaf_index: u64, leaf: felt252, siblings: Span<felt252>
-    ) -> felt252 {
-        let mut node = leaf;
-        let mut index = leaf_index;
-        let mut level = 0_u8;
-
-        loop {
-            if level == depth {
-                break;
+            if index % 2_u64 == 1_u64 {
+                let sibling = self.group_node_hash.read((group_id, level, index - 1_u64));
+                node = hash2(sibling, node);
+            } else {
+                let sibling_exists = self.group_node_exists.read((group_id, level, index + 1_u64));
+                if sibling_exists {
+                    let sibling = self.group_node_hash.read((group_id, level, index + 1_u64));
+                    node = hash2(node, sibling);
+                }
             }
-
-            let sibling = *siblings.at(level.into());
-            let is_left = index % 2_u64 == 0_u64;
-
-            node = if is_left { hash2(node, sibling) } else { hash2(sibling, node) };
 
             index = index / 2_u64;
             level = level + 1_u8;
         };
 
+        self.group_node_hash.write((group_id, dynamic_depth, 0_u64), node);
+        self.group_node_exists.write((group_id, dynamic_depth, 0_u64), true);
+
+        node
+    }
+
+    fn compute_root_from_path(
+        self: @ContractState,
+        group_id: felt252,
+        depth: u8,
+        leaf_index: u64,
+        leaf: felt252,
+        siblings: Span<felt252>
+    ) -> felt252 {
+        let mut node = leaf;
+        let mut index = leaf_index;
+        let mut level = 0_u8;
+        let mut sibling_index: usize = 0;
+
+        loop {
+            if level == depth {
+                break;
+            }
+
+            let has_sibling = if index % 2_u64 == 1_u64 {
+                self.group_node_exists.read((group_id, level, index - 1_u64))
+            } else {
+                self.group_node_exists.read((group_id, level, index + 1_u64))
+            };
+
+            if has_sibling {
+                assert(sibling_index < siblings.len(), 'INVALID_SIBLINGS_LEN');
+                let sibling = *siblings.at(sibling_index);
+                node = if index % 2_u64 == 0_u64 {
+                    hash2(node, sibling)
+                } else {
+                    hash2(sibling, node)
+                };
+                sibling_index += 1;
+            }
+
+            index = index / 2_u64;
+            level = level + 1_u8;
+        };
+
+        assert(sibling_index == siblings.len(), 'INVALID_SIBLINGS_LEN');
         node
     }
 }

@@ -5,8 +5,10 @@ use snforge_std::{
     DeclareResultTrait,
     declare,
     map_entry_address,
+    start_cheat_block_timestamp_global,
     start_cheat_caller_address,
     store,
+    stop_cheat_block_timestamp_global,
     stop_cheat_caller_address,
 };
 
@@ -85,6 +87,9 @@ fn deploy_root_depth_stack(
     let semaphore = ISemaphoreDispatcher { contract_address: semaphore_addr };
 
     semaphore.create_group(GROUP_ID, admin(), DEPTH_20);
+    start_cheat_caller_address(semaphore_addr, admin());
+    semaphore.add_member(GROUP_ID, ROOT_CURRENT);
+    stop_cheat_caller_address(semaphore_addr);
     seed_root_history(semaphore_addr);
 
     start_cheat_caller_address(semaphore_addr, owner());
@@ -153,6 +158,26 @@ fn point_28_historic_root_is_accepted_when_present() {
 }
 
 #[test]
+#[should_panic(expected: 'ROOT_EXPIRED')]
+fn point_28_expired_historic_root_is_rejected() {
+    let semaphore = deploy_root_depth_stack(ROOT_HISTORIC, NULLIFIER_HISTORIC);
+    let proof = build_submission_proof();
+
+    start_cheat_block_timestamp_global(3602);
+    semaphore.validate_proof(
+        GROUP_ID,
+        DEPTH_20,
+        ROOT_HISTORIC,
+        NULLIFIER_HISTORIC,
+        MESSAGE,
+        SCOPE,
+        MESSAGE_HASH,
+        SCOPE_HASH,
+        proof.span(),
+    );
+}
+
+#[test]
 fn point_28_current_root_is_accepted_when_present() {
     let semaphore = deploy_root_depth_stack(ROOT_CURRENT, NULLIFIER_CURRENT);
     let proof = build_submission_proof();
@@ -170,4 +195,26 @@ fn point_28_current_root_is_accepted_when_present() {
     );
 
     assert(semaphore.is_nullifier_used(NULLIFIER_CURRENT), 'POINT28_CURR_FAIL');
+}
+
+#[test]
+fn point_28_current_root_is_accepted_after_historic_window() {
+    let semaphore = deploy_root_depth_stack(ROOT_CURRENT, NULLIFIER_CURRENT);
+    let proof = build_submission_proof();
+
+    start_cheat_block_timestamp_global(3602);
+    semaphore.validate_proof(
+        GROUP_ID,
+        DEPTH_20,
+        ROOT_CURRENT,
+        NULLIFIER_CURRENT,
+        MESSAGE,
+        SCOPE,
+        MESSAGE_HASH,
+        SCOPE_HASH,
+        proof.span(),
+    );
+    stop_cheat_block_timestamp_global();
+
+    assert(semaphore.is_nullifier_used(NULLIFIER_CURRENT), 'POINT28_CURR_WINDOW_FAIL');
 }

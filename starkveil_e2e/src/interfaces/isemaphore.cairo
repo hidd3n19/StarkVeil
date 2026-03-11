@@ -15,6 +15,9 @@ pub trait ISemaphore<TContractState> {
     fn set_group_admin(
         ref self: TContractState, group_id: felt252, admin: starknet::ContractAddress
     );
+    fn update_group_merkle_tree_duration(
+        ref self: TContractState, group_id: felt252, new_merkle_tree_duration: u64
+    );
 
     fn add_member(ref self: TContractState, group_id: felt252, identity_commitment: felt252);
     fn add_members(

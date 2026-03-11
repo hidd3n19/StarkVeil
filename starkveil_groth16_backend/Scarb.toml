@@ -12,12 +12,12 @@ starknet = "2.14.0"
 
 [cairo]
 sierra-replace-ids = false
-inlining-strategy = 2
+inlining-strategy = 0
 
 [dev-dependencies]
-snforge_std = "0.53.0"
+snforge_std = "0.57.0"
 assert_macros = "2.14.0"
 
 [[target.starknet-contract]]
-casm = true
-casm-add-pythonic-hints = true
+casm = false
+casm-add-pythonic-hints = false
