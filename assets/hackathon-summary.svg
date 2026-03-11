@@ -1,0 +1,100 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" fill="#FFFFFF"/>
+
+  <defs>
+    <filter id="grainyWordmark" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="7" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F766E"/>
+      <stop offset="100%" stop-color="#155E75"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="72" y="56" width="1456" height="788" rx="32" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="2"/>
+
+  <text x="120" y="132" fill="#111111" font-family="'Courier New', monospace" font-size="44" font-weight="800" letter-spacing="-1.5" filter="url(#grainyWordmark)">StarkVeil</text>
+  <text x="120" y="180" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">Semaphore semantics on Starknet, without changing the upstream proof system</text>
+  <text x="120" y="216" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="18">Hackathon summary: why upstream compatibility matters, what was ported, and what is proven live.</text>
+  <text x="120" y="248" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">Upstream, in this context:</text>
+  <text x="318" y="248" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="16">the original Semaphore circuit, proving artifacts, and proof format reused in StarkVeil</text>
+
+  <rect x="120" y="280" width="650" height="320" rx="24" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <rect x="120" y="280" width="650" height="12" rx="6" fill="url(#accent)"/>
+  <text x="156" y="338" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Problem: why use upstream?</text>
+
+  <circle cx="172" cy="366" r="6" fill="#0F766E"/>
+  <text x="194" y="376" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="194" dy="0">If Starknet uses a different tree or circuit,</tspan>
+    <tspan x="194" dy="24">the same group can produce a different root.</tspan>
+  </text>
+
+  <circle cx="172" cy="444" r="6" fill="#0F766E"/>
+  <text x="194" y="452" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="194" dy="0">That breaks Ethereum Semaphore behavior,</tspan>
+    <tspan x="194" dy="24">even if the proof itself is valid.</tspan>
+  </text>
+
+  <circle cx="172" cy="496" r="6" fill="#0F766E"/>
+  <text x="194" y="504" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="194" dy="0">Using upstream artifacts preserves the guarantees:</tspan>
+    <tspan x="194" dy="24">same identity model, public inputs, verifier</tspan>
+    <tspan x="194" dy="24">assumptions, and user flow.</tspan>
+  </text>
+
+  <rect x="790" y="280" width="690" height="320" rx="24" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <rect x="790" y="280" width="690" height="12" rx="6" fill="url(#accent)"/>
+  <text x="838" y="338" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Porting summary</text>
+
+  <circle cx="854" cy="366" r="6" fill="#155E75"/>
+  <text x="876" y="376" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="876" dy="0">Ported the Semaphore contract layer to Cairo:</tspan>
+    <tspan x="876" dy="24">groups, roots, nullifiers, and verifier routing.</tspan>
+  </text>
+
+  <circle cx="854" cy="444" r="6" fill="#155E75"/>
+  <text x="876" y="452" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="876" dy="0">Changed on-chain roots to match upstream</tspan>
+    <tspan x="876" dy="24">LeanIMT semantics, not a zero-filled fixed tree.</tspan>
+  </text>
+
+  <circle cx="854" cy="496" r="6" fill="#155E75"/>
+  <text x="876" y="504" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="876" dy="0">Connected a real BN254 verifier path through</tspan>
+    <tspan x="876" dy="24">a generic bridge backend and adapter.</tspan>
+  </text>
+
+  <circle cx="854" cy="550" r="6" fill="#155E75"/>
+  <text x="876" y="554" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="17">
+    <tspan x="876" dy="0">Kept the upstream proof flow off-chain and fed</tspan>
+    <tspan x="876" dy="24">the same proof model into Starknet.</tspan>
+  </text>
+
+  <rect x="120" y="622" width="1360" height="188" rx="26" fill="#0F172A"/>
+  <text x="156" y="682" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">What was achieved</text>
+
+  <circle cx="176" cy="706" r="6" fill="#5EEAD4"/>
+  <text x="198" y="714" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="16">
+    <tspan x="198" dy="0">Declared the real BN254 verifier on Starknet Sepolia</tspan>
+    <tspan x="198" dy="26">and deployed the full StarkVeil stack.</tspan>
+  </text>
+
+  <circle cx="176" cy="760" r="6" fill="#5EEAD4"/>
+  <text x="198" y="768" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="16">
+    <tspan x="198" dy="0">Accepted a real upstream Semaphore proof on-chain</tspan>
+    <tspan x="198" dy="26">with no manual root seeding.</tspan>
+  </text>
+
+  <circle cx="840" cy="696" r="6" fill="#5EEAD4"/>
+  <text x="862" y="704" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="16">
+    <tspan x="862" dy="0">Confirmed Ethereum-style behavior: root known,</tspan>
+    <tspan x="862" dy="26">verifier passes, nullifier flips to used.</tspan>
+  </text>
+
+  <circle cx="840" cy="760" r="6" fill="#5EEAD4"/>
+  <text x="862" y="768" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="16">
+    <tspan x="862" dy="0">Result: StarkVeil is a live Starknet Semaphore</tspan>
+    <tspan x="862" dy="26">behavior port, not a mock.</tspan>
+  </text>
+</svg>
