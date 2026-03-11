@@ -1,5 +1,6 @@
 # Dependencies
 **/node_modules/
+/frontend/dist/
 
 # Python virtual environments
 **/venv/
@@ -40,6 +41,7 @@ __pycache__/
 # Local screenshots and temp assets
 /semaphore-frontend/screenshots/
 /scripts/.tmp_point_31/
+/scripts/.tmp_grants_demo/
 
 # Local wallet / keystore / secret material
 *.pem
@@ -59,7 +61,13 @@ __pycache__/
 *.md
 **/*.md
 !README.md
+!port-doc.md
+!port-testing-doc.md
+!test-pass.md
 !**/README.md
+!**/port-doc.md
+!**/port-testing-doc.md
+!**/test-pass.md
 
 # OS/editor junk
 .DS_Store
